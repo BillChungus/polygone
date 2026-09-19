@@ -4,10 +4,23 @@
   "version": "0.1.0",
   "description": "Shows how much polyester a garment contains, right on the product page.",
   "minimum_chrome_version": "102",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "storage",
     "activeTab"
   ],
+  "action": {
+    "default_title": "Poly Check",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  },
   "content_scripts": [
     {
       "matches": [
@@ -24,9 +37,5 @@
       "run_at": "document_idle",
       "all_frames": false
     }
-  ],
-  "action": {
-    "default_title": "Poly Check",
-    "default_popup": "popup/popup.html"
-  }
+  ]
 }

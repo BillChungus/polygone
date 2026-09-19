@@ -34,8 +34,12 @@ product detail pages only. No build step: plain JS content scripts.
   A few older fixtures (Zara, Old Navy, Nordstrom) were reduced by hand from the rendered DOM.
 
 ## Behavior spec (decided with the user)
-- **Plastic = polyester, nylon (polyamide), acrylic, spandex (elastane/Lycra), elastomultiester, polyurethane (PU), PVC.**
-  Set is `PLASTIC` in parser.js. Recycled polyester counts. Any amount counts (no threshold).
+- **Plastic = polyester (PES/PET/PTT/Sorona), nylon (polyamide, Tactel, Cordura), aramid (Kevlar, Nomex), acrylic,
+  modacrylic, polypropylene, polyolefin, polyethylene (Dyneema), polylactic acid (PLA), neoprene, spandex
+  (elastane/Lycra), elastomultiester, elastodiene, elastolefin, polyurethane (PU/TPU), PVC.**
+  Set is `PLASTIC` in parser.js. NOT counted: cotton, linen, wool etc., regenerated cellulose (viscose,
+  modal, lyocell, cupro, acetate/triacetate), down/feathers, leather, and "other fibres" / metallic
+  fibres (judgement calls: acetate is semi-synthetic, metallic threads are often polyester film). Recycled polyester counts. Any amount counts (no threshold).
 - **Colors:** red if plastic > 10%, orange if > 0% and <= 10%, green if 0%.
   Cutoff is `HIGH_ABOVE` in badge.js. Percent = sum across all plastic fibers in the main fabric.
 - **Multi-part garments:** one box per part ("Shell", "Lining", "Upper part", ...), each with its
@@ -72,8 +76,10 @@ product detail pages only. No build step: plain JS content scripts.
 ## Known gaps / next steps
 - Reports go to a private repo, so only invited people can file (others get a 404 on GitHub's
   new-issue page). Make the repo public, or point `REPORT` `REPO` elsewhere, before sharing widely.
-- Toolbar icon (none yet, Chrome shows a default letter icon); would need a background service
-  worker to color it.
+- Icons: the user's own design is in `icons/` (16/48/128 px PNGs, transparent), registered in the manifest
+  (`icons` and `action.default_icon`). Not done: a 32 px size for sharper toolbar icons on high-DPI screens
+  (Chrome scales the 48 down), and an icon that changes color per page (needs a background service worker
+  and per-tab state).
 - Corpus has ~50 pages: Shopify stores, Uniqlo, Amazon UK/US, Nike, Boohoo, M&S, Target, John Lewis,
   ASOS, H&M, Macy's, eBay, Etsy, Shein UK. Not covered: Next (403 to curl; text confirmed in the
   rendered DOM), Walmart (marketplace pages list no composition), Shein US (CAPTCHA, see below).
@@ -103,5 +109,11 @@ product detail pages only. No build step: plain JS content scripts.
   is heavy and ToS-risky).
 - Possible on-demand mode (`activeTab` + `scripting`) instead of `<all_urls>` for easier
   Chrome Web Store review.
-- Fiber list is finite: a fiber missing from `FIBER_NAMES` makes a composition sum < 100
-  and lowers confidence.
+- **Unknown fibers.** The list (`FIBER_NAMES` + `CANON` + `PLASTIC` in parser.js) is finite, so a word next to a
+  percentage that isn't in it is accepted as an *unrecognised* fiber only if it brings the composition to
+  100% (within 2 points and closer than before): "50% off" and prices stay out. Unrecognised fibers are
+  never hidden and never green: status "unrecognised" ("Fiber not recognised / Can't tell if plastic: xyz 2%"),
+  listed in the panel and in reports. If the name looks like a plastic (`PLASTIC_STEMS`: poly, acryl,
+  nylon, elast, ...-ester, olefin, vinyl, ...) it is counted as plastic. To teach it a new fiber, add its
+  pattern to `FIBER_NAMES`, a canonical name to `CANON`, and to `PLASTIC` if it is one. Reports ("Poly Check
+  showed") reveal which unknown names real shoppers hit.
