@@ -13,15 +13,29 @@
 
   // Extend freely. A fiber missing from this list makes its segment sum to
   // less than 100, which lowers confidence (see parseComposition).
+  // Grouped by what the fiber is; PLASTIC (below) says which canonical names count as plastic.
   const FIBER_NAMES = [
-    "polyester", "poli[eé]ster", "polyestere", "聚酯纤维", "聚酯", "poly",
-    "polyamide", "nylon", "polyurethane", "pu", "elasto-?multiester", "elastane", "elastan", "spandex", "lycra",
+    // synthetic: polyester family (PES/PET/PBT are ISO and trade names; PTT = Sorona/triexta)
+    "polyester", "poli[eé]ster", "polyestere", "聚酯纤维", "聚酯", "poly", "pes", "pet", "pbt", "ptt",
+    "triexta", "sorona", "coolmax", "polyethylene terephthalate",
+    // synthetic: nylon family ("nylon 6", "nylon 6,6", aramid = Kevlar/Nomex)
+    // (?![\\d%]) so "Nylon 60%" is nylon at 60%, not "nylon 6" at 0%
+    "polyamide(?:\\s*6(?:[.,]?6)?(?![\\d%]))?", "nylon(?:\\s*6(?:[.,]?6)?(?![\\d%]))?", "tactel", "supplex", "meryl", "cordura",
+    "aramid", "kevlar", "nomex",
+    // synthetic: acrylic, olefin, PU, vinyl, stretch
+    "acrylic", "modacrylic", "polypropylene", "polyolefin", "polyethylene", "dyneema",
+    "polylactic acid", "polylactide", "neoprene",
+    "polyurethane", "pu", "tpu", "elasto-?multiester", "elasto-?diene", "elasto-?lefin",
+    "elastane", "elastan", "spandex", "lycra",
+    "polyvinyl chloride", "polyvinylchloride", "pvc", "vinyl", "chlorofib(?:er|re)",
+    // natural and regenerated (never plastic)
     "cotton", "coton", "algod[oó]n", "baumwolle",
-    "viscose", "rayon", "modal", "lyocell", "tencel", "cupro",
-    "wool", "merino", "cashmere", "alpaca", "mohair",
-    "linen", "flax", "hemp", "silk",
-    "acrylic", "acetate", "polypropylene", "leather",
-    "polyvinyl chloride", "pvc", "vinyl",
+    "viscose", "rayon", "modal", "micro[- ]?modal", "lyocell", "tencel", "cupro", "acetate", "triacetate", "livaeco",
+    "wool", "lambs?-?wool", "merino", "cashmere", "alpaca", "mohair", "angora", "camel(?:\\s+hair)?", "yak", "llama", "vicu[nñ]a",
+    "linen", "flax", "hemp", "jute", "ramie", "kapok", "bamboo", "nettle", "silk",
+    "leather", "suede", "fur", "(?:duck\\s+|goose\\s+)?down", "feathers?",
+    // "other fibres", metallic threads: not named, not counted as plastic
+    "other\\s+(?:fib(?:er|re)s?|materials?)", "metallic(?:\\s+fib(?:er|re)s?)?", "metallised(?:\\s+fib(?:er|re)s?)?", "metal", "lurex",
     // Brands sometimes say what the polyester is made from instead of naming it:
     // "89% recycled water bottles (RPET)". "recycled" is required so a bare
     // "bottles" never counts.
@@ -68,17 +82,29 @@
   const isMainLabel = (label) => MAIN_LABELS.test(label.split("/")[0].trim());
 
   const CANON = [
-    [/^(polyester|poli[eé]ster|polyestere|poly|聚酯纤维|聚酯)$/, "polyester"],
+    [/^(polyester|poli[eé]ster|polyestere|poly|聚酯纤维|聚酯|pes|pet|pbt|ptt|triexta|sorona|coolmax|polyethylene terephthalate)$/, "polyester"],
     [/^(rpet|(water |plastic )?bottles?|plastic)$/, "polyester"],
-    [/^(polyamide|nylon)$/, "nylon"],
-    [/^(polyurethane|pu)$/, "polyurethane"],
+    [/^(polyamide|nylon|tactel|supplex|meryl|cordura)(?: ?6[.,]?6?)?$/, "nylon"],
+    [/^(aramid|kevlar|nomex)$/, "aramid"],
+    [/^(polyurethane|pu|tpu)$/, "polyurethane"],
     [/^elasto-?multiester$/, "elastomultiester"],
+    [/^elasto-?diene$/, "elastodiene"],
+    [/^elasto-?lefin$/, "elastolefin"],
     [/^(elastane|elastan|spandex|lycra)$/, "elastane"],
-    [/^(viscose|rayon)$/, "viscose"],
+    [/^(dyneema|polyethylene)$/, "polyethylene"],
+    [/^(polylactic acid|polylactide)$/, "polylactic acid"],
+    [/^(viscose|rayon|livaeco)$/, "viscose"],
+    [/^(modal|micro[- ]?modal)$/, "modal"],
     [/^(cotton|coton|algod[oó]n|baumwolle)$/, "cotton"],
-    [/^(wool|merino)$/, "wool"],
+    [/^(wool|lambs?-?wool|merino)$/, "wool"],
     [/^(tencel|lyocell)$/, "lyocell"],
-    [/^(pvc|polyvinyl chloride|vinyl)$/, "pvc"],
+    [/^(acetate|triacetate)$/, "acetate"],
+    [/^(camel|camel hair)$/, "camel"],
+    [/^(down|duck down|goose down)$/, "down"],
+    [/^feathers?$/, "feather"],
+    [/^(pvc|polyvinyl chloride|polyvinylchloride|vinyl|chlorofib(?:er|re))$/, "pvc"],
+    [/^other (?:fib(?:er|re)s?|materials?)$/, "other"],
+    [/^(metallic|metallised|metal|lurex)(?: fib(?:er|re)s?)?$/, "metallic"],
   ];
 
   const round1 = (n) => Math.round(n * 10) / 10;
@@ -91,15 +117,99 @@
     return { name: s, recycled };
   }
 
+  // ---------- Fibers we don't know yet ----------
+  // The fiber list is finite, and a name missing from it used to make a composition add up to less
+  // than 100 and hide the result. So a word next to a percentage that the list doesn't know is accepted
+  // as an "unrecognised" fiber, but only if it completes the composition to ~100%, which keeps
+  // "50% off" and similar text out. Unrecognised fibers are always reported, never silently dropped.
+
+  // Words that follow a percentage without being a fiber.
+  const NOT_FIBERS = new Set(
+    ("off of on in at to for from with and or the a an this that your our new sale save extra free more less " +
+     "only was now over under up gbp usd eur discount deposit apr vat tax cashback interest fee star stars " +
+     "rating positive recommended customers satisfaction shell lining body main fabric material materials " +
+     "composition content care machine wash by as is are be not no yes per cent percent").split(" ")
+  );
+  // "5% Xyz fibre" -> "xyz"
+  const GENERIC_TAIL = new Set(["fibre", "fibres", "fiber", "fibers", "yarn", "yarns", "blend", "fabric"]);
+  // Name stems that mean a plastic. Used only for fibers we don't know: better counted than missed.
+  const PLASTIC_STEMS = /(poly|acryl|nylon|elast|ester$|olefin|vinyl|plastic|rubber|neoprene|aramid|urethane|amide)/;
+  const NOT_PLASTIC_STEMS = /^(polynosic)$/; // "poly..." but regenerated cellulose
+
+  const UNKNOWN_RE = () =>
+    new RegExp(
+      `(?<pa>${NUM})\\s*%\\s*(?<na>[a-z][a-z-]{1,24}(?:\\s+[a-z][a-z-]{1,24}){0,2})` +
+        `|(?<nb>[a-z][a-z-]{2,24})\\s*[:(]?\\s*(?<pb>${NUM})\\s*%`,
+      "gi"
+    );
+
+  function cleanName(raw) {
+    const words = [];
+    for (const w of raw.toLowerCase().split(/\s+/)) {
+      if (NOT_FIBERS.has(w)) break;
+      words.push(w);
+    }
+    while (words.length && GENERIC_TAIL.has(words[words.length - 1])) words.pop();
+    const name = words.join(" ");
+    return name.length >= 3 && name.length <= 40 ? name : "";
+  }
+
+  function unknownCandidates(text, known) {
+    const inKnown = (i) => known.some((k) => i >= k.at && i < k.end);
+    const seen = new Set();
+    const out = [];
+    for (const m of text.matchAll(UNKNOWN_RE())) {
+      const g = m.groups;
+      const raw = g.na ?? g.nb;
+      const pctText = g.pa ?? g.pb;
+      const at = g.pa !== undefined ? m.index : m.index + m[0].lastIndexOf(pctText);
+      const pct = parseFloat(pctText.replace(",", "."));
+      const name = cleanName(raw);
+      if (!name || pct > 100 || pct <= 0 || inKnown(at) || seen.has(at)) continue;
+      seen.add(at);
+      out.push({
+        name,
+        recycled: false,
+        pct,
+        at,
+        unrecognised: true,
+        plasticGuess: PLASTIC_STEMS.test(name) && !NOT_PLASTIC_STEMS.test(name),
+      });
+      if (out.length >= 6) break;
+    }
+    return out;
+  }
+
+  // Which unknown candidates (if any) bring the composition to 100 (within 2 points)? Must be a real
+  // improvement, so a composition that already adds up exactly is left alone. A composition that is
+  // "close enough" (98) still lets a matching 2% unknown fiber in, so it is reported, not hidden.
+  function pickGapFillers(knownSum, candidates) {
+    const err = (total) => Math.abs(total - 100);
+    const before = err(knownSum);
+    if (!candidates.length || before <= 0.5 || knownSum > 102) return [];
+    const better = (total) => err(total) <= 2 && err(total) < before;
+    const all = knownSum + candidates.reduce((a, c) => a + c.pct, 0);
+    if (better(all)) return candidates;
+    const singles = candidates
+      .filter((c) => better(knownSum + c.pct))
+      .sort((a, b) => err(knownSum + a.pct) - err(knownSum + b.pct));
+    return singles.slice(0, 1);
+  }
+
   function parseFibers(text) {
-    const fibers = [];
+    const known = [];
     for (const m of text.matchAll(fiberRegex())) {
       const g = m.groups;
       const pct = parseFloat((g.pa ?? g.pb).replace(",", "."));
       if (pct > 100) continue;
-      fibers.push({ ...normalizeFiber(g.fa ?? g.fb), pct });
+      known.push({ ...normalizeFiber(g.fa ?? g.fb), pct, at: m.index, end: m.index + m[0].length });
     }
-    return fibers;
+    // Unknown words only get a say once something is recognised ("Save 50% off" alone is not a composition).
+    const knownSum = known.reduce((a, f) => a + f.pct, 0);
+    const extra = known.length ? pickGapFillers(knownSum, unknownCandidates(text, known)) : [];
+    return [...known, ...extra]
+      .sort((a, b) => a.at - b.at)
+      .map(({ at, end, ...fiber }) => fiber);
   }
 
   // Never sum across segments: 100% shell + 100% lining is not 200%.
@@ -161,13 +271,20 @@
   // From the "which fabrics contain plastic" chart. Edit this set to change
   // what counts. Satin and fleece are handled separately (HINTS): they name a
   // weave or finish, not a fiber.
-  const PLASTIC = new Set(["polyester", "nylon", "acrylic", "elastane", "elastomultiester", "polyurethane", "pvc"]);
+  const PLASTIC = new Set([
+    "polyester", "nylon", "aramid", "acrylic", "modacrylic", "polypropylene", "polyolefin", "polyethylene",
+    "polylactic acid", "neoprene", "elastane", "elastomultiester", "elastodiene", "elastolefin",
+    "polyurethane", "pvc",
+  ]);
 
   // Words that suggest plastic but aren't fibers. Only used when the page has
   // no readable composition, because "silk satin" and "cotton fleece" exist.
   const HINTS = { fleece: /\bfleece\b/i, satin: /\bsatin\b/i };
 
-  const plasticOf = (fibers) => fibers.filter((f) => PLASTIC.has(f.name));
+  // A fiber the list doesn't know but whose name looks like a plastic ("polyxyz") counts too.
+  const isPlasticFiber = (f) => PLASTIC.has(f.name) || !!f.plasticGuess;
+  const plasticOf = (fibers) => fibers.filter(isPlasticFiber);
+  const unrecognisedOf = (fibers) => fibers.filter((f) => f.unrecognised);
 
   /**
    * Plastic content of a parsed composition.
@@ -182,7 +299,7 @@
       .filter((s) => s !== comp.main)
       .map((s) => ({ label: s.label, fibers: plasticOf(s.fibers) }))
       .filter((part) => part.fibers.length);
-    return { plasticPct, breakdown, otherParts, parts: partsOf(comp) };
+    return { plasticPct, breakdown, otherParts, unrecognised: unrecognisedOf(comp.main.fibers), parts: partsOf(comp) };
   }
 
   const MAX_PARTS = 5;
@@ -198,6 +315,7 @@
           isMain: s === comp.main,
           complete: s.complete,
           breakdown,
+          unrecognised: unrecognisedOf(s.fibers),
           plasticPct: Math.min(100, round1(breakdown.reduce((a, f) => a + f.pct, 0))),
         };
       })
@@ -227,4 +345,5 @@
   NS.findHints = findHints;
   NS.findNamedFibers = findNamedFibers;
   NS.isPlastic = (name) => PLASTIC.has(name);
+  NS.isPlasticFiber = isPlasticFiber;
 })();

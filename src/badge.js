@@ -141,7 +141,8 @@
     const out = [];
     fibers.forEach((f, i) => {
       if (i) out.push(", ");
-      out.push(NS.isPlastic(f.name) ? el("strong", {}, fmtFiber(f)) : fmtFiber(f));
+      const text = f.unrecognised ? `${fmtFiber(f)} (not recognised)` : fmtFiber(f);
+      out.push(NS.isPlasticFiber(f) ? el("strong", {}, text) : text);
     });
     return out;
   }
@@ -175,6 +176,8 @@
           title: "May contain plastic",
           note: `${r.hints.map(cap).join(" and ")} in the name; fabric not listed`,
         };
+      case "unrecognised":
+        return { state: "unknown", title: "Fiber not recognised", note: unrecognisedNote(r.unrecognised) };
       case "named":
         return { state: "named", title: "Contains plastic", note: "Amounts not found" };
       case "none":
@@ -184,17 +187,21 @@
     }
   }
 
+  // "xyz 2%, abc 5%": fibers we found next to a percentage but don't have in our list.
+  const unrecognisedNote = (fibers) => `Can't tell if plastic: ${fibers.map((f) => `${f.name} ${fmt(f.pct)}%`).join(", ")}`;
+
   // One box per garment part. Each part is colored by its own plastic percentage.
   function describePart(p) {
     const part = p.label ? titleCase(p.label) : "Main fabric";
     if (p.plasticPct > 0) {
       return { part, state: colorFor(p.plasticPct), title: `Plastic ${fmt(p.plasticPct)}%`, note: p.breakdown.map(fmtFiber).join(", ") };
     }
+    if (p.unrecognised?.length) return { part, state: "unknown", title: "Fiber not recognised", note: unrecognisedNote(p.unrecognised) };
     if (p.complete) return { part, state: "none", title: "No plastic fibers", note: "Fabric is listed and has none" };
     return { part, state: "unknown", title: "Material not found", note: "Percentages don't add up" };
   }
 
-  const isMultiPart = (r) => r.parts?.length > 1 && ["found", "partial", "none"].includes(r.status);
+  const isMultiPart = (r) => r.parts?.length > 1 && ["found", "partial", "none", "unrecognised"].includes(r.status);
 
   // What the badge shows, one line per box. Goes into a report so it says what the person saw.
   const lineFor = (d) => `${d.part ? `${d.part}: ` : ""}${d.title}${d.note ? ` (${d.note})` : ""}`;
@@ -254,7 +261,7 @@
           el("li", {}, el("span", { class: "muted" }, `${s.label ? titleCase(s.label) : "Fabric"}: `), ...fiberNodes(s.fibers))
         ))
       );
-      kids.push(el("p", {}, `Read from ${SOURCE_LABEL[r.tier] || "the page"}. Counted as plastic: polyester, nylon, acrylic, spandex/elastane, elastomultiester, polyurethane (PU), PVC.`));
+      kids.push(el("p", {}, `Read from ${SOURCE_LABEL[r.tier] || "the page"}. Counted as plastic: polyester, nylon, acrylic, spandex/elastane, elastomultiester, polyurethane (PU), PVC, polypropylene and similar.`));
       kids.push(...quoteNodes(r));
     } else if (r.status === "named") {
       const names = r.fibers.map((f) => DISPLAY[f] || f).join(", ");
@@ -262,6 +269,14 @@
       kids.push(...quoteNodes(r));
     } else {
       kids.push(el("p", {}, "We couldn't find a fabric breakdown. Look for a tag photo or a Details section on the retailer's page."));
+    }
+
+    if (r.unrecognised?.length) {
+      const names = r.unrecognised.map((f) => f.name).join(", ");
+      const guessed = r.unrecognised.some((f) => f.plasticGuess);
+      kids.push(el("p", {}, guessed
+        ? `We don't have "${names}" in our fiber list. Its name looks like a plastic, so it is counted.`
+        : `We don't have "${names}" in our fiber list, so we can't say whether it is plastic. It is not counted.`));
     }
 
     if (r.status === "possible") {

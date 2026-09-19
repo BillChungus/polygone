@@ -90,6 +90,37 @@ const parserCases = [
   ["98% cotton 2% elasto-multiester", 2],
   ["70% cotton, 30% PU", 30],
   ["Shell: 100% cotton. Coating: 100% PU", 0],
+  // Wider fiber list: plastic
+  ["80% cotton, 15% modacrylic, 5% polypropylene", 20],
+  ["100% PES", 100],
+  ["50% cotton 50% TPU", 50],
+  ["100% Kevlar", 100],
+  ["60% cotton 40% polyolefin", 40],
+  ["95% cotton 5% elastodiene", 5],
+  ["97% cotton 3% elastolefin", 3],
+  ["100% Dyneema", 100],
+  ["70% cotton 30% PLA fibre", 0],
+  ["70% cotton 30% polylactic acid", 30],
+  ["Nylon 60%, Cotton 40%", 60],
+  ["Nylon 6,6 80% Elastane 20%", 100],
+  ["80% Polyamide 6 20% Elastane", 100],
+  ["100% chlorofibre", 100],
+  // Wider fiber list: not plastic
+  ["90% down, 10% feathers", 0],
+  ["95% cotton, 5% other fibres", 0],
+  ["98% cotton, 2% metallic fibre", 0],
+  ["60% wool 40% kapok", 0],
+  ["70% lambswool 30% angora", 0],
+  ["100% jute", 0],
+  ["55% ramie 45% cotton", 0],
+  ["100% micro modal", 0],
+  ["50% camel hair, 50% wool", 0],
+  ["100% triacetate", 0],
+  // Unknown fibers that complete the composition are accepted; text that doesn't isn't
+  ["60% cotton, 38% polyester, 2% xyzfibre", 38],
+  ["98% cotton, 2% Polyxyzene fibre", 2],
+  ["70% cotton 30% Zorbex", 0],
+  ["Save 40% off polyester tees", null],
   ["Upper part: Viscose 48%, Polyester 28%, Polyamide 19%, Elastane 5% Bottom part: Polyester 100% Bottom part lining: Polyester 100%", 52],
 ];
 for (const [text, want] of parserCases) check(text, plasticOf(text), want);
@@ -275,6 +306,30 @@ check("data without page lines uses a plain quote", fromJson.quote, "78% Polyami
 
 const bulletReport = R.build({ ...sample, result: { ...sample.result, lines: ["Blue", "Shell: 65% Polyester"] } });
 check("report quotes bullet lines", bulletReport.body.includes("> - Blue\n> - Shell: 65% Polyester"), true);
+
+// ---- Fibers the list doesn't know: accepted when they complete a composition, always reported ----
+console.log("\nUnknown fibers");
+const boxes = (txt) => badge(comp(txt));
+check("unrecognised fiber is never green", boxes("98% cotton, 2% Zorbex").states.join("+"), "unknown");
+check("unrecognised: title", boxes("98% cotton, 2% Zorbex").titles[0], "Fiber not recognised");
+check("unrecognised: note names the fiber and amount", boxes("98% cotton, 2% Zorbex").notes[0], "Can't tell if plastic: zorbex 2%");
+check("unrecognised fiber that looks like a plastic is counted", boxes("90% cotton, 10% Polyxyzene").states.join("+"), "low");
+check("known plastic plus an unrecognised fiber still shows the plastic", boxes("60% cotton, 30% polyester, 10% Zorbex").states.join("+"), "high");
+check("regenerated cellulose 'polynosic' is not guessed to be plastic", boxes("45% wool, 55% Polynosic").states.join("+"), "unknown");
+check("'40% off' is not a fiber", boxes("60% cotton, 40% off").states.join("+"), "unknown");
+check("'40% off' does not make it green either", boxes("60% cotton, 40% off").titles[0], "Material not found");
+check("a part with an unknown fiber gets its own box", boxes("Shell: 98% cotton, 2% Zorbex. Lining: 100% polyester").states.join("+"), "unknown+high");
+check("a page with only unknown words is not a composition", plasticOf("50% Zorbex 50% Blorf"), null);
+{
+  const w = load(comp("98% cotton, 2% Zorbex"));
+  w.PolyCheck.badge.render(w.PolyCheck.analyzePage(), {});
+  const panel = w.document.getElementById("polycheck-host").shadowRoot.querySelector(".panel");
+  check("panel explains the unknown fiber", panel.textContent.includes('We don\'t have "zorbex" in our fiber list'), true);
+  check("panel lists it as not recognised", panel.textContent.includes("2% zorbex (not recognised)"), true);
+  const r = w.PolyCheck.analyzePage();
+  check("result lists the unrecognised fibers", r.unrecognised.map((f) => f.name).join(","), "zorbex");
+  check("status is unrecognised", r.status, "unrecognised");
+}
 
 // ---- 3. Color boundaries: red > 10%, orange <= 10%, green 0% ----
 console.log("\nColors");

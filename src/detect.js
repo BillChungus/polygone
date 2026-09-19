@@ -284,14 +284,14 @@
 
     if (best) {
       const comp = best.composition;
-      const { plasticPct, breakdown, otherParts, parts } = NS.summarizeComposition(comp);
+      const { plasticPct, breakdown, otherParts, parts, unrecognised } = NS.summarizeComposition(comp);
 
       // "No plastic" is only trustworthy if the composition adds up.
       // Otherwise we can't tell "none" from "we missed it".
       const status =
         plasticPct > 0 ? "found"
         : otherParts.length ? "partial"   // shell is clean, lining/fill isn't
-        : comp.confidence === "high" ? "none"
+        : comp.confidence === "high" ? (unrecognised.length ? "unrecognised" : "none")  // never green if a fiber is unknown
         : "unknown";
 
       result = {
@@ -299,6 +299,7 @@
         plasticPct,
         breakdown,
         otherParts,
+        unrecognised,
         parts,
         segments: comp.segments,
         confidence: comp.confidence,
