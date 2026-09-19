@@ -239,6 +239,16 @@ check(
   "Shell: 100% polyester"
 );
 check(
+  "typed-in bullet characters are dropped",
+  linesOf("<h1>Jacket</h1><h3>Composition</h3><p>• Material: 100% Cotton<br>· Do not bleach<br>- Iron low<br>Read more</p>").join("|"),
+  "Material: 100% Cotton|Do not bleach|Iron low"
+);
+check(
+  "a hyphen inside a word is kept",
+  linesOf("<h1>Tee</h1><h3>Composition</h3><ul><li>-5% off</li><li>Long-sleeve: 100% cotton</li></ul>").join("|"),
+  "-5% off|Long-sleeve: 100% cotton"
+);
+check(
   "at most 12 lines",
   linesOf("<h1>Tee</h1><h3>Composition</h3><ul>" + Array.from({ length: 20 }, (_, i) => `<li>Line ${i}</li>`).join("") + "<li>100% cotton</li></ul>").length,
   12
@@ -316,6 +326,7 @@ const corpusCases = {
   "jl-trousers": ["found", 2],              // "98% BCI Cotton 2% Elastane"
   "jl-dress": ["none", 0],
   "jl-polo": ["none", 0],
+  "33mm-elliot-jacket": ["none", 0],        // page types its own "•" bullets and has a "Read more" button
   "tkmaxx-joggers": ["found", 70],          // "Shell: ..." and "Pockets: ..." are separate <li>s
   "asos-chiffon": ["found", 100],
   "asos-shirt-dress": ["found", 100],       // "Shell 1: 100% Polyester, Shell 2: 100% Cotton"
@@ -351,6 +362,7 @@ for (const [name, [status, pct]] of Object.entries(corpusCases)) {
   check(`${name}: product page`, pc.isProductPage(), true);
   check(`${name}: status`, r.status, status);
   if (pct !== undefined) check(`${name}: plastic %`, r.plasticPct, pct);
+  if (name === "33mm-elliot-jacket") check("33mm-elliot-jacket: no doubled bullets or UI text", r.lines[0] === "Material: 100% Cotton" && !r.lines.some((l) => /^[•·]|Read more/.test(l)), true);
   if (name === "tkmaxx-joggers") check("tkmaxx-joggers: bullets", r.lines.includes("Pockets: 60% Cotton, 40% Polyester") && r.lines.length === 10, true);
   if (corpusParts[name] !== undefined) check(`${name}: boxes`, r.parts.length, corpusParts[name]);
 }

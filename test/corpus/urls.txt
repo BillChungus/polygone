@@ -33,3 +33,4 @@ jl-polo https://www.johnlewis.com/john-lewis-merino-wool-cotton-blend-stripe-but
 asos-shirt-dress https://www.asos.com/asos-design/asos-design-relaxed-mini-shirt-dress-with-contrast-cord-trims-in-navy-check/prd/211144664
 asos-chiffon https://www.asos.com/asos-design/asos-design-maxi-chiffon-dress-with-asym-sleeves-in-dark-green/prd/211149830
 asos-supersoft https://www.asos.com/asos-design/asos-design-supersoft-asym-draped-mini-dress-in-charcoal/prd/210853868
+33mm-elliot-jacket https://33-mm.com/products/elliot-jacket

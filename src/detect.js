@@ -110,13 +110,17 @@
   const SKIP = /^(SCRIPT|STYLE|NOSCRIPT)$/;
   const MAX_LINES = 12;
   const MAX_LINE = 200;
+  // Some shops type their own bullets into the text ("• Material: 100% Cotton"); the panel draws its
+  // own, so drop them or every line shows two. A lone "-" only counts when followed by a space.
+  const LEADING_BULLET = /^(?:[•·∙▪▫◦●○■□‣⁃*]|[-–—](?=\s))\s*/;
+  const UI_TEXT = /^(?:read|show|see|view) (?:more|less|all)$/i; // "Read more" buttons inside the block
 
   function linesOf(root) {
     const lines = [];
     let cur = "";
     const flush = () => {
-      const t = norm(cur);
-      if (t) lines.push(t.length > MAX_LINE ? t.slice(0, MAX_LINE) + "…" : t);
+      const t = norm(cur).replace(LEADING_BULLET, "");
+      if (t && !UI_TEXT.test(t)) lines.push(t.length > MAX_LINE ? t.slice(0, MAX_LINE) + "…" : t);
       cur = "";
     };
     (function walk(node) {
