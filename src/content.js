@@ -9,7 +9,7 @@
 (async function () {
   const NS = window.PolyCheck;
 
-  const DEFAULTS = { enabled: true, disabledHosts: [] };
+  const DEFAULTS = NS.settings.DEFAULTS;
   const SETTLE_MS = 3000; // wait this long before admitting "material not found"
   const DEBOUNCE_MS = 500;
 
@@ -27,8 +27,7 @@
   let dismissed = false;   // user pressed "Hide on this page"
   let timer = 0;
 
-  const siteDisabled = () =>
-    !settings.enabled || settings.disabledHosts.includes(location.hostname);
+  const siteDisabled = () => !NS.settings.isOn(settings, location.hostname);
 
   function resetForNewPage() {
     currentHref = location.href;

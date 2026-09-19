@@ -78,6 +78,29 @@
       margin: 0 0 8px; padding-left: 8px; color: var(--muted);
       border-left: 2px solid var(--line); overflow-wrap: anywhere;
     }
+    .panel ul.read {
+      margin: 0 0 8px 2px; padding: 0 0 0 20px; border-left: 2px solid var(--line);
+      color: var(--muted); overflow-wrap: anywhere;
+    }
+    .panel ul.read li.hit { color: var(--ink); }
+    .panel label { display: block; margin: 0 0 4px; font-weight: 600; }
+    .panel textarea {
+      box-sizing: border-box; width: 100%; min-height: 52px; margin: 0 0 8px; padding: 6px 8px;
+      font: inherit; color: var(--ink); background: var(--paper);
+      border: 1px solid var(--line); border-radius: 4px; resize: vertical;
+    }
+    .panel pre {
+      margin: 0 0 10px; padding: 6px 8px; max-height: 130px; overflow: auto;
+      white-space: pre-wrap; overflow-wrap: anywhere;
+      font: 12px/1.4 ui-monospace, Consolas, monospace; color: var(--muted);
+      border: 1px solid var(--line); border-radius: 4px;
+    }
+    .actions { display: flex; align-items: center; gap: 14px; }
+    .btn {
+      all: unset; cursor: pointer; padding: 5px 10px; border-radius: 4px;
+      background: var(--ink); color: var(--paper); font-size: 13px; font-weight: 600;
+    }
+    .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
     .muted { color: var(--muted); }
     .link { all: unset; cursor: pointer; text-decoration: underline; }
     .link:focus-visible, .pill:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -108,6 +131,8 @@
 
   const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  // "body/gusset lining" -> "Body/Gusset Lining"
+  const titleCase = (s) => s.replace(/(^|[\s/])(\w)/g, (m, sep, ch) => sep + ch.toUpperCase());
   const fmtFiber = (f) =>
     `${fmt(f.pct)}% ${f.recycled ? "recycled " : ""}${DISPLAY[f.name] || f.name}`;
 
@@ -141,7 +166,7 @@
           state: colorFor(worstOtherPart(r)),
           title: "Plastic in other parts",
           note: r.otherParts
-            .map((p) => `${cap(p.label || "other part")}: ${p.fibers.map(fmtFiber).join(", ")}`)
+            .map((p) => `${titleCase(p.label || "other part")}: ${p.fibers.map(fmtFiber).join(", ")}`)
             .join("; "),
         };
       case "possible":
@@ -161,7 +186,7 @@
 
   // One box per garment part. Each part is colored by its own plastic percentage.
   function describePart(p) {
-    const part = p.label ? cap(p.label) : "Main fabric";
+    const part = p.label ? titleCase(p.label) : "Main fabric";
     if (p.plasticPct > 0) {
       return { part, state: colorFor(p.plasticPct), title: `Plastic ${fmt(p.plasticPct)}%`, note: p.breakdown.map(fmtFiber).join(", ") };
     }
@@ -171,21 +196,70 @@
 
   const isMultiPart = (r) => r.parts?.length > 1 && ["found", "partial", "none"].includes(r.status);
 
-  function buildPanel(r, opts) {
+  // What the badge shows, one line per box. Goes into a report so it says what the person saw.
+  const lineFor = (d) => `${d.part ? `${d.part}: ` : ""}${d.title}${d.note ? ` (${d.note})` : ""}`;
+
+  // The "Report a wrong reading" view: shows the exact text of the report and links to a pre-filled
+  // GitHub issue. Nothing is sent from here; the person submits on github.com themselves.
+  function buildReportView(r, items, onCancel) {
+    const comment = el("textarea", { id: "report-comment", rows: 2, maxLength: 500, placeholder: "e.g. The tag says 100% cotton" });
+    const preview = el("pre", {});
+    const send = el("a", { class: "btn", target: "_blank", rel: "noopener noreferrer" }, "Open GitHub issue");
+
+    const refresh = () => {
+      const report = NS.report.build({
+        href: location.href,
+        lines: items.map(lineFor),
+        result: r,
+        version: NS.report.version(),
+        comment: comment.value,
+      });
+      preview.textContent = report.body;
+      send.href = NS.report.issueUrl(report);
+    };
+    comment.addEventListener("input", refresh);
+
+    const cancel = el("button", { class: "link", type: "button" }, "Cancel");
+    cancel.addEventListener("click", onCancel);
+
+    const view = el(
+      "div",
+      { hidden: true },
+      el("h2", {}, "Report a wrong reading"),
+      el("p", {}, "This opens a pre-filled issue on GitHub. Nothing is sent until you press Submit there, and you can edit or cancel first."),
+      el("label", { htmlFor: "report-comment" }, "What looks wrong? (optional)"),
+      comment,
+      el("p", {}, "This is what will be included:"),
+      preview,
+      el("div", { class: "actions" }, send, cancel)
+    );
+    return { view, refresh, focus: () => comment.focus() };
+  }
+
+  // The text we read, as the page laid it out: a bullet list when the source had separate lines
+  // (lines with a fiber percentage stand out), otherwise a plain quote.
+  function quoteNodes(r) {
+    if (r.lines?.length > 1) {
+      return [el("ul", { class: "read" }, ...r.lines.map((line) => el("li", { class: NS.hasFiberPattern(line) ? "hit" : "" }, line)))];
+    }
+    return r.snippet ? [el("blockquote", {}, r.snippet)] : [];
+  }
+
+  function buildPanel(r, opts, items = []) {
     const kids = [el("h2", {}, "How this was read")];
 
     if (r.segments?.length) {
       kids.push(
         el("ul", {}, ...r.segments.map((s) =>
-          el("li", {}, el("span", { class: "muted" }, `${s.label ? cap(s.label) : "Fabric"}: `), ...fiberNodes(s.fibers))
+          el("li", {}, el("span", { class: "muted" }, `${s.label ? titleCase(s.label) : "Fabric"}: `), ...fiberNodes(s.fibers))
         ))
       );
-      kids.push(el("p", {}, `Read from ${SOURCE_LABEL[r.tier] || "the page"}. Counted as plastic: polyester, nylon, acrylic, spandex/elastane, PVC.`));
-      if (r.snippet) kids.push(el("blockquote", {}, r.snippet));
+      kids.push(el("p", {}, `Read from ${SOURCE_LABEL[r.tier] || "the page"}. Counted as plastic: polyester, nylon, acrylic, spandex/elastane, elastomultiester, polyurethane (PU), PVC.`));
+      kids.push(...quoteNodes(r));
     } else if (r.status === "named") {
       const names = r.fibers.map((f) => DISPLAY[f] || f).join(", ");
       kids.push(el("p", {}, `The page names ${names} but gives no percentages, so we can't say how much plastic there is.`));
-      if (r.snippet) kids.push(el("blockquote", {}, r.snippet));
+      kids.push(...quoteNodes(r));
     } else {
       kids.push(el("p", {}, "We couldn't find a fabric breakdown. Look for a tag photo or a Details section on the retailer's page."));
     }
@@ -196,12 +270,25 @@
 
     kids.push(el("p", {}, "Retailer labels can be wrong or incomplete. If you have an allergy, check the garment tag."));
 
-    // TODO: "Report wrong reading" button here. Send URL + snippet only with explicit user consent.
+    const report = el("button", { class: "link", type: "button" }, "Report wrong reading");
     const hide = el("button", { class: "link", type: "button" }, "Hide on this page");
     hide.addEventListener("click", () => opts.onDismiss?.());
-    kids.push(hide);
+    kids.push(el("div", { class: "actions" }, report, hide));
 
-    return el("div", { class: "panel", id: "panel", hidden: true }, ...kids);
+    const main = el("div", {}, ...kids);
+    const reportView = buildReportView(r, items, () => {
+      reportView.view.hidden = true;
+      main.hidden = false;
+      report.focus();
+    });
+    report.addEventListener("click", () => {
+      main.hidden = true;
+      reportView.view.hidden = false;
+      reportView.refresh();
+      reportView.focus();
+    });
+
+    return el("div", { class: "panel", id: "panel", hidden: true }, main, reportView.view);
   }
 
   function remove() {
@@ -221,7 +308,7 @@
     const style = document.createElement("style");
     style.textContent = CSS;
 
-    const panel = buildPanel(result, opts);
+    const panel = buildPanel(result, opts, items);
     const pills = items.map((d) =>
       el(
         "button",

@@ -5,15 +5,25 @@ floating badge with how much plastic-based fiber the garment contains. Targets a
 product detail pages only. No build step: plain JS content scripts.
 
 ## Layout
-- `manifest.json` - one content script on `<all_urls>` loading four files IN THIS ORDER
+- `manifest.json` - one content script on `<all_urls>` loading six files IN THIS ORDER
   (they share the `window.PolyCheck` namespace, no modules/bundler):
 - `src/parser.js` - pure text -> composition logic, no DOM. Fiber regex, part splitting
   ("Shell:", "Lining:"), plastic set, `summarizeComposition`, `findHints`.
 - `src/detect.js` - product-page check, 4-tier extraction (JSON-LD, labeled section like
   "Composition", embedded script state (Shein), full-page scan), scoring, `analyzePage()` -> result object.
-- `src/badge.js` - shadow-DOM badge (states, colors, detail panel).
-- `src/content.js` - settings (chrome.storage.sync), debounced MutationObserver, SPA nav,
-  settle delay, orchestration.
+- `src/report.js` - builds the "Report wrong reading" text and the pre-filled GitHub issue link. Pure.
+  `REPO` at the top is where reports go: change it if the repo is renamed or moved.
+- `result.lines` (detect.js `linesOf`) is the page's own line structure for the winning block (max 12
+  lines): the details panel shows it as bullets (fabric lines in bold) and reports quote it as a list.
+  JSON-LD/embedded-state results have no lines and fall back to a plain quote of `snippet`.
+- `src/badge.js` - shadow-DOM badge (states, colors, detail panel, report view).
+- `src/settings.js` - setting names/defaults and `isOn(settings, hostname)` (www ignored, a parent
+  domain covers its subdomains). Shared by content.js and the popup; pure, no chrome.* calls.
+- `src/content.js` - loads settings (chrome.storage.sync), debounced MutationObserver, SPA nav,
+  settle delay, orchestration. Reacts to storage changes so popup switches apply instantly.
+- `popup/` - toolbar popup (popup.html/css/js): "Show plastic badges" switch, "On for <this site>"
+  switch, and a list of sites turned off with "Turn on". Needs the `activeTab` permission to read the
+  current tab's host; hidden on chrome:// pages. Host names are inserted with textContent only.
 - `test/run.js` - end-to-end checks in jsdom (no browser needed). `npm install && npm test`.
 - `test/corpus/` - saved real product pages (`pages/`, listed in `urls.txt`), checked in section 4
   of run.js. `node test/corpus/fetch.js` downloads missing ones; `inspect.js` prints what the
@@ -51,15 +61,19 @@ product detail pages only. No build step: plain JS content scripts.
 - Never put scraped page text into `innerHTML`; badge.js builds DOM with `append(string)`.
 - Use `textContent`, not `innerText`, when reading page text (collapsed accordions still count).
 - Render UI in the shadow root so site CSS can't affect it. Don't use localStorage.
-- Everything runs locally; no network calls, no data leaves the browser.
+- Everything runs locally; no network calls, no data leaves the browser. The one exception is the
+  "Report wrong reading" flow, and even that sends nothing itself: it shows the exact report text
+  (page URL WITHOUT query string/#fragment, what the badge showed, the text it read, an optional
+  comment) and an `<a target=_blank>` link to github.com/<REPO>/issues/new. The person presses Submit
+  on GitHub. Keep it that way: no fetch/XHR/beacon/window.open for reports (tested).
 - Color is never the only signal: keep the text label ("Plastic 12%").
 - New behavior gets a case in `test/run.js`.
 
 ## Known gaps / next steps
-- Settings UI (popup/options) for enabled toggle and per-site disable. Storage plumbing exists
-  in content.js (`enabled`, `disabledHosts`); no UI yet.
-- "Report wrong reading" button (TODO in badge.js). Must send URL + snippet only with consent.
-- Toolbar icon (none yet); would need a background service worker to color it.
+- Reports go to a private repo, so only invited people can file (others get a 404 on GitHub's
+  new-issue page). Make the repo public, or point `REPORT` `REPO` elsewhere, before sharing widely.
+- Toolbar icon (none yet, Chrome shows a default letter icon); would need a background service
+  worker to color it.
 - Corpus has ~50 pages: Shopify stores, Uniqlo, Amazon UK/US, Nike, Boohoo, M&S, Target, John Lewis,
   ASOS, H&M, Macy's, eBay, Etsy, Shein UK. Not covered: Next (403 to curl; text confirmed in the
   rendered DOM), Walmart (marketplace pages list no composition), Shein US (CAPTCHA, see below).
@@ -67,8 +81,6 @@ product detail pages only. No build step: plain JS content scripts.
   `{"attrName":"Composition","attrValue":"94% Polyamide, 6% Elastane"}` (or `attr_name`/`attr_value`, with
   escaped quotes), read by `stateCandidates()`. Shein shows a CAPTCHA (`/risk/challenge`) after a few
   automated page loads, UK and US; do not try to get past it. Verified on 3 real UK pages only.
-- Nike "Body/Gusset Lining: 75% polyester/25% elastane. Mesh: ..." is labelled just "Lining" and the
-  Mesh part is ignored (numbers are right, label is not).
 - Real-Chrome check: Chrome 153 ignores `--load-extension`; puppeteer-core with
   `pipe: true, enableExtensions: [path]` loads it (throwaway profile). Only real mouse clicks reach
   the badge (a synthetic `.click()` from the page world doesn't). Macy's and H&M return "Access

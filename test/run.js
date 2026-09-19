@@ -15,7 +15,7 @@ function check(name, got, want) {
 
 function load(html) {
   const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://shop.example/p/1" });
-  for (const f of ["parser.js", "detect.js", "badge.js"]) {
+  for (const f of ["parser.js", "detect.js", "report.js", "badge.js"]) {
     dom.window.eval(fs.readFileSync(path.join(SRC, f), "utf8"));
   }
   return dom.window;
@@ -107,6 +107,8 @@ const pageCases = [
   ["named: inline 'Material: Nylon'", page("<h1>Jacket</h1><p>Material: Nylon</p>"), "named"],
   ["named: JSON-LD material without percentages", page("<h1>Dress</h1>", '<script type="application/ld+json">{"@type":"Product","name":"Dress","material":"polyester/elastane"}</script>'), "named"],
   ["parts on sibling lines (TK Maxx): one box each", page("<h1>Joggers</h1><div><ul><li>Shell: 65% Polyester, 29% Cotton, 5% Elastane</li><li>Pockets: 60% Cotton, 40% Polyester</li><li>Machine washable</li></ul></div>"), "high+high"],
+  ["compound label is one part: 'Body/Gusset Lining' + 'Mesh'", comp("Body/Gusset Lining: 75% polyester/25% elastane. Mesh: 81% nylon/19% elastane."), "high+high"],
+  ["compound label starting with body is the main fabric", comp("Lining: 100% polyester. Body/Gusset Lining: 100% cotton"), "high+none"],
   ["parts on sibling <p> lines, no heading", page("<h1>Coat</h1><div><p>Shell: 100% cotton</p><p>Lining: 100% polyester</p></div>"), "none+high"],
   ["one fiber per <li>, no label", page("<h1>Tee</h1><ul><li>60% cotton</li><li>40% polyester</li></ul>"), "high"],
   ["natural fibers only stay unknown, never green", page("<h1>Dress</h1><p>Materials: Linen</p>"), "unknown"],
@@ -135,9 +137,134 @@ check("named: one box", named.states.length, 1);
 const multi = badge(comp("Shell: 100% cotton. Lining: 100% polyester"));
 check("multi: labels", multi.parts.join("|"), "Shell|Lining");
 check("multi: titles", multi.titles.join("|"), "No plastic fibers|Plastic 100%");
+const nikeLeggings = badge(comp("Body/Gusset Lining: 75% polyester/25% elastane. Mesh: 81% nylon/19% elastane."));
+check("compound label reads as one part, title-cased", nikeLeggings.parts.join("|"), "Body/Gusset Lining|Mesh");
+check("hood lining is its own part", badge(comp("Body: 100% cotton. Hood lining: 100% polyester")).parts.join("|"), "Body|Hood Lining");
 check("single part has no label line", badge(comp("60% cotton, 40% polyester")).parts[0], undefined);
 const many = badge(comp("Shell: 100% cotton. Lining: 100% polyester. Fill: 100% polyester. Trim: 100% nylon. Rib: 100% acrylic. Sleeves: 100% wool"));
 check("at most 5 boxes", many.states.length, 5);
+
+// ---- Report a wrong reading: pre-filled GitHub issue, nothing sent by the extension ----
+console.log("\nReport");
+const R = load("<html><body></body></html>").PolyCheck.report;
+check("url: query and fragment are dropped", R.safeUrl("https://shop.example/p/1?utm=abc&email=a@b.c#reviews"), "https://shop.example/p/1");
+check("url: credentials are dropped", R.safeUrl("https://user:pw@shop.example/p/1"), "https://shop.example/p/1");
+check("url: non-web pages are not shared", R.safeUrl("chrome://extensions/"), "");
+check("url: junk is not shared", R.safeUrl("nonsense"), "");
+
+const sample = {
+  href: "https://shop.example/p/1?x=1",
+  lines: ["Shell: Plastic 70% (65% polyester)"],
+  result: { status: "found", tier: "scan", snippet: "Shell: 65% Polyester `x`\nnext line" },
+  version: "0.1.0",
+  comment: "tag says cotton",
+};
+const rep = R.build(sample);
+check("report: title has the host only", rep.title, "Wrong reading: shop.example");
+check("report: page line is the clean url", rep.body.split("\n")[0], "**Page:** https://shop.example/p/1");
+check("report: no query string anywhere", rep.body.includes("x=1"), false);
+check("report: says what the badge showed", rep.body.includes("Shell: Plastic 70% (65% polyester)"), true);
+check("report: snippet is one line, no backticks", rep.body.includes("> Shell: 65% Polyester 'x' next line"), true);
+check("report: includes the person's comment", rep.body.includes("**What looks wrong:** tag says cotton"), true);
+check("report: empty comment gets a prompt", R.build({ ...sample, comment: "" }).body.includes("(add details here)"), true);
+const longComment = R.build({ ...sample, comment: "a".repeat(900) }).body.split("**What looks wrong:** ")[1].split("\n")[0];
+check("report: comment is capped at 500 characters", longComment.length, 500);
+check("report: page with no usable url says so", R.build({ ...sample, href: "chrome://x" }).body.includes("(not shared)"), true);
+check("issue link targets the repo's new-issue page", R.issueUrl(rep).startsWith(`https://github.com/${R.REPO}/issues/new?title=`), true);
+check("issue link carries the whole report", decodeURIComponent(R.issueUrl(rep).split("&body=")[1]), rep.body);
+
+// The panel: opening the report view, editing, cancelling. Any network call or window.open would count.
+{
+  const dom = new JSDOM(comp("Shell: 100% cotton. Lining: 100% polyester"), {
+    runScripts: "outside-only",
+    url: "https://shop.example/p/1?utm_source=newsletter&email=me@example.com#frag",
+  });
+  const w = dom.window;
+  let sent = 0;
+  w.fetch = () => sent++;
+  w.open = () => sent++;
+  w.XMLHttpRequest = function () { sent++; };
+  w.navigator.sendBeacon = () => sent++;
+  for (const f of ["parser.js", "detect.js", "report.js", "badge.js"]) w.eval(fs.readFileSync(path.join(SRC, f), "utf8"));
+  w.PolyCheck.badge.render(w.PolyCheck.analyzePage(), {});
+
+  const sr = w.document.getElementById("polycheck-host").shadowRoot;
+  const button = (label) => [...sr.querySelectorAll("button")].find((b) => b.textContent.trim() === label);
+  const preview = sr.querySelector("pre");
+  const view = preview.parentElement;
+  const link = sr.querySelector("a.btn");
+
+  check("report view starts hidden", view.hidden, true);
+  button("Report wrong reading").click();
+  check("report view opens", view.hidden, false);
+  check("preview shows the clean page url", preview.textContent.includes("**Page:** https://shop.example/p/1\n"), true);
+  check("preview has no query string or fragment", /utm_source|example\.com|frag/.test(preview.textContent), false);
+  check("preview says what the boxes showed", preview.textContent.includes("Lining: Plastic 100%"), true);
+  check("link opens a new tab without opener", link.target === "_blank" && /noopener/.test(link.rel), true);
+  check("link goes to github.com", link.href.startsWith("https://github.com/"), true);
+
+  const textarea = sr.querySelector("textarea");
+  textarea.value = "The tag says 100% cotton";
+  textarea.dispatchEvent(new w.Event("input"));
+  check("typing updates the preview", preview.textContent.includes("The tag says 100% cotton"), true);
+  check("typing updates the link", decodeURIComponent(link.href).includes("The tag says 100% cotton"), true);
+
+  button("Cancel").click();
+  check("cancel closes the report view", view.hidden, true);
+  check("cancel brings back the details", button("Hide on this page").closest(".actions").parentElement.hidden, false);
+  check("nothing was sent by the extension", sent, 0);
+}
+
+// ---- "How this was read" keeps the page's own lines, shown as bullets ----
+console.log("\nBullets");
+const linesOf = (body) => load(page(body)).PolyCheck.analyzePage().lines;
+check(
+  "list items become separate lines",
+  linesOf("<h1>Joggers</h1><h3>Composition</h3><ul><li>Blue</li><li>Shell: 65% polyester, 35% cotton</li><li>Machine wash</li></ul>").join("|"),
+  "Blue|Shell: 65% polyester, 35% cotton|Machine wash"
+);
+check(
+  "<br> splits lines",
+  linesOf("<h1>Tee</h1><h3>Composition</h3><p>Shell: 100% cotton<br>Lining: 100% polyester</p>").join("|"),
+  "Shell: 100% cotton|Lining: 100% polyester"
+);
+check(
+  "a table cell is one line, not split at commas or cells",
+  linesOf("<h1>Tee</h1><table><tr><th>Composition</th><td>60% cotton, <b>40% polyester</b></td></tr></table>").join("|"),
+  "60% cotton, 40% polyester"
+);
+check(
+  "inline markup stays on one line",
+  linesOf("<h1>Tee</h1><h3>Composition</h3><ul><li>Shell: <b>100% polyester</b></li></ul>").join("|"),
+  "Shell: 100% polyester"
+);
+check(
+  "at most 12 lines",
+  linesOf("<h1>Tee</h1><h3>Composition</h3><ul>" + Array.from({ length: 20 }, (_, i) => `<li>Line ${i}</li>`).join("") + "<li>100% cotton</li></ul>").length,
+  12
+);
+
+function bulletsIn(html) {
+  const w = load(html);
+  w.PolyCheck.badge.render(w.PolyCheck.analyzePage(), {});
+  const sr = w.document.getElementById("polycheck-host").shadowRoot;
+  return {
+    items: [...sr.querySelectorAll("ul.read li")].map((li) => li.textContent),
+    hits: [...sr.querySelectorAll("ul.read li.hit")].map((li) => li.textContent),
+    quote: sr.querySelector("blockquote")?.textContent,
+  };
+}
+const shown = bulletsIn(page("<h1>Joggers</h1><h3>Composition</h3><ul><li>Blue</li><li>Shell: 65% polyester, 35% cotton</li><li>Machine wash</li></ul>"));
+check("panel shows bullets", shown.items.join("|"), "Blue|Shell: 65% polyester, 35% cotton|Machine wash");
+check("panel highlights the fabric line only", shown.hits.join("|"), "Shell: 65% polyester, 35% cotton");
+check("no run-on quote when bullets are shown", shown.quote, undefined);
+const single = bulletsIn(page("<h1>Tee</h1><h3>Composition</h3><p>100% cotton</p>"));
+check("one line falls back to a plain quote", single.quote, "100% cotton");
+const fromJson = bulletsIn(page("<h1>Legging</h1>", '<script type="application/ld+json">{"@type":"Product","name":"Legging","material":"78% Polyamide, 22% Elastane"}</script>'));
+check("data without page lines uses a plain quote", fromJson.quote, "78% Polyamide, 22% Elastane");
+
+const bulletReport = R.build({ ...sample, result: { ...sample.result, lines: ["Blue", "Shell: 65% Polyester"] } });
+check("report quotes bullet lines", bulletReport.body.includes("> - Blue\n> - Shell: 65% Polyester"), true);
 
 // ---- 3. Color boundaries: red > 10%, orange <= 10%, green 0% ----
 console.log("\nColors");
@@ -213,7 +340,7 @@ const corpusCases = {
   "allbirds-cruiser": ["unknown", undefined],
 };
 // Pages whose garment has several parts: how many boxes the badge should show
-const corpusParts = { "tkmaxx-joggers": 2, "hm-1343736001": 3, "nike-hoodie": 2, "asos-chiffon": 2, "macys-kensie": 1 };
+const corpusParts = { "tkmaxx-joggers": 2, "hm-1343736001": 3, "nike-hoodie": 3, "nike-leggings": 2, "nike-shorts": 3, "asos-chiffon": 2, "macys-kensie": 1 };
 for (const [name, [status, pct]] of Object.entries(corpusCases)) {
   const html = fs.readFileSync(path.join(CORPUS, `${name}.html`), "utf8");
   const url = html.match(/^<!-- (\S+) -->/)[1];
@@ -224,8 +351,136 @@ for (const [name, [status, pct]] of Object.entries(corpusCases)) {
   check(`${name}: product page`, pc.isProductPage(), true);
   check(`${name}: status`, r.status, status);
   if (pct !== undefined) check(`${name}: plastic %`, r.plasticPct, pct);
+  if (name === "tkmaxx-joggers") check("tkmaxx-joggers: bullets", r.lines.includes("Pockets: 60% Cotton, 40% Polyester") && r.lines.length === 10, true);
   if (corpusParts[name] !== undefined) check(`${name}: boxes`, r.parts.length, corpusParts[name]);
 }
 
-console.log(failed ? `\n${failed} check(s) failed` : "\nAll checks passed");
-process.exit(failed ? 1 : 0);
+// ---- 5. Settings: on/off rule, toolbar popup, and the content script reacting to changes ----
+console.log("\nSettings");
+const S = load("<html><body></body></html>");
+S.eval(fs.readFileSync(path.join(SRC, "settings.js"), "utf8"));
+const st = S.PolyCheck.settings;
+const on = (settings, host) => st.isOn({ ...st.DEFAULTS, ...settings }, host);
+check("on by default", on({}, "shop.example"), true);
+check("global off", on({ enabled: false }, "shop.example"), false);
+check("site off", on({ disabledHosts: ["shop.example"] }, "shop.example"), false);
+check("other sites stay on", on({ disabledHosts: ["shop.example"] }, "other.example"), true);
+check("www is ignored when matching", on({ disabledHosts: ["shop.example"] }, "www.shop.example"), false);
+check("stored www entry still matches", on({ disabledHosts: ["www.shop.example"] }, "shop.example"), false);
+check("a parent domain covers subdomains", on({ disabledHosts: ["amazon.co.uk"] }, "smile.amazon.co.uk"), false);
+check("lookalike host is not covered", on({ disabledHosts: ["shop.example"] }, "notshop.example"), true);
+check("empty entry matches nothing", on({ disabledHosts: [""] }, "shop.example"), true);
+check("host case is ignored", on({ disabledHosts: ["Shop.Example"] }, "SHOP.example"), false);
+
+// Fake chrome API backed by a plain object; listeners are kept so tests can fire storage changes.
+function fakeChrome(store, tabUrl) {
+  const listeners = [];
+  return {
+    listeners,
+    storage: {
+      sync: {
+        get: async (defaults) => ({ ...defaults, ...store }),
+        set: async (o) => {
+          const changes = {};
+          for (const [k, v] of Object.entries(o)) {
+            changes[k] = { newValue: v };
+            store[k] = v;
+          }
+          listeners.forEach((l) => l(changes, "sync"));
+        },
+      },
+      onChanged: { addListener: (l) => listeners.push(l) },
+    },
+    tabs: { query: async () => (tabUrl ? [{ url: tabUrl }] : []) },
+  };
+}
+const tick = (ms = 20) => new Promise((r) => setTimeout(r, ms));
+
+async function openPopup(store, tabUrl) {
+  const html = fs.readFileSync(path.join(__dirname, "..", "popup", "popup.html"), "utf8");
+  const dom = new JSDOM(html.replace(/<script[^>]*><\/script>/g, ""), {
+    runScripts: "outside-only",
+    url: "chrome-extension://x/popup/popup.html",
+  });
+  const w = dom.window;
+  w.chrome = fakeChrome(store, tabUrl);
+  w.eval(fs.readFileSync(path.join(SRC, "settings.js"), "utf8"));
+  w.eval(fs.readFileSync(path.join(__dirname, "..", "popup", "popup.js"), "utf8"));
+  await tick();
+  return { w, $: (id) => w.document.getElementById(id), store };
+}
+
+// Loads the real content script into a product page with the fake chrome API.
+async function runContent(store) {
+  const html = comp("Shell: 100% cotton. Lining: 100% polyester");
+  const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://shop.example/p/1" });
+  const w = dom.window;
+  w.chrome = fakeChrome(store, null);
+  for (const f of ["parser.js", "detect.js", "report.js", "badge.js", "settings.js", "content.js"]) {
+    w.eval(fs.readFileSync(path.join(SRC, f), "utf8"));
+  }
+  await tick(60);
+  return { has: () => !!w.document.getElementById("polycheck-host"), chrome: w.chrome };
+}
+
+(async () => {
+  // Popup
+  let p = await openPopup({}, "https://www.shop.example/p/1?x=1");
+  check("popup: enabled switch starts on", p.$("enabled").checked, true);
+  check("popup: site row shows the host without www", p.$("site-label").textContent, "On for shop.example");
+  check("popup: site switch starts on", p.$("site").checked, true);
+  check("popup: no 'sites turned off' section yet", p.$("off-section").hidden, true);
+  p.$("site").click();
+  await tick();
+  check("popup: turning a site off stores it", p.store.disabledHosts.join(","), "shop.example");
+  check("popup: turned-off site is listed", p.$("off-list").textContent.includes("shop.example"), true);
+  p.$("site").click();
+  await tick();
+  check("popup: turning it back on removes it", p.store.disabledHosts.length, 0);
+  p.$("enabled").click();
+  await tick();
+  check("popup: global off stores enabled=false", p.store.enabled, false);
+  check("popup: site switch is disabled while everything is off", p.$("site").disabled, true);
+
+  p = await openPopup({ disabledHosts: ["shop.example", "other.example"] }, "https://shop.example/");
+  check("popup: existing entry shows the switch off", p.$("site").checked, false);
+  p.w.document.querySelector("#off-list button").click();
+  await tick();
+  check("popup: 'Turn on' in the list removes just that site", p.store.disabledHosts.join(","), "other.example");
+
+  p = await openPopup({ disabledHosts: ["shop.example"] }, "https://sub.shop.example/");
+  check("popup: subdomain of a turned-off site shows off", p.$("site").checked, false);
+  p.$("site").click();
+  await tick();
+  check("popup: turning the subdomain on drops the parent entry", p.store.disabledHosts.length, 0);
+
+  p = await openPopup({}, "chrome://extensions/");
+  check("popup: no site switch on browser pages", p.$("site-row").hidden, true);
+  p = await openPopup({}, undefined);
+  check("popup: no site switch without a tab", p.$("site-row").hidden, true);
+  p = await openPopup({ disabledHosts: ["<img src=x onerror=alert(1)>"] }, undefined);
+  check("popup: stored host text is plain text, not markup", p.w.document.querySelectorAll("img").length, 0);
+
+  // Content script: badge appears, then follows the settings live
+  let c = await runContent({});
+  check("content: badge shows by default", c.has(), true);
+  await c.chrome.storage.sync.set({ enabled: false });
+  await tick(60);
+  check("content: switching off removes the badge at once", c.has(), false);
+  await c.chrome.storage.sync.set({ enabled: true });
+  await tick(60);
+  check("content: switching back on brings it back", c.has(), true);
+  await c.chrome.storage.sync.set({ disabledHosts: ["www.shop.example"] });
+  await tick(60);
+  check("content: turning this site off removes the badge", c.has(), false);
+  await c.chrome.storage.sync.set({ disabledHosts: ["other.example"] });
+  await tick(60);
+  check("content: turning off a different site leaves it", c.has(), true);
+  c = await runContent({ enabled: false });
+  check("content: starts with no badge when turned off", c.has(), false);
+  c = await runContent({ disabledHosts: ["shop.example"] });
+  check("content: starts with no badge on a turned-off site", c.has(), false);
+
+  console.log(failed ? `\n${failed} check(s) failed` : "\nAll checks passed");
+  process.exit(failed ? 1 : 0);
+})();

@@ -50,10 +50,22 @@
   const FIBER_TEST = new RegExp(FIBER_RE_SRC, "i");
 
   // Labels that start a new garment part: "Shell: ...", "Lining: ..."
-  const LABEL_RE =
-    /\b((?:upper|lower|bottom|top) part(?: lining)?|outer shell|shell|outer|exterior|main fabric|main material|main|body|pocket lining|pocketing|lining|filling|fill|padding|insulation|contrast|trim|rib|sleeves?|interior|pockets?(?: bags?)?|hood|waistband|collar|cuffs?|top|bottom|front|back)(?:\s*\d+)?\s*:/gi;
+  // Words that start a garment part: "Shell: ...", "Hood lining: ...", "Mesh: ...". A part can also be
+  // several of these joined by slashes ("Body/Gusset Lining: ..."), which is one part, not two.
+  const LABEL_WORDS = [
+    "(?:upper|lower|bottom|top) part(?: lining)?",
+    "outer shell", "shell", "outer", "exterior", "main fabric", "main material", "main", "body",
+    "(?:hood|sleeve|waistband|gusset|body|front|back|side) lining", "pocket lining", "pocketing", "lining",
+    "filling", "fill", "padding", "insulation", "contrast", "trim", "rib", "sleeves?", "interior",
+    "pockets?(?: bags?)?(?: palm side)?", "hood", "waistband", "collar", "cuffs?", "top", "bottom",
+    "front", "back", "gusset", "mesh", "brief",
+  ];
+  const LABEL_WORD = `(?:${LABEL_WORDS.join("|")})`;
+  const LABEL_RE = new RegExp(String.raw`\b(${LABEL_WORD}(?:\s*/\s*${LABEL_WORD})*)(?:\s*\d+)?\s*:`, "gi");
   const MAIN_LABELS =
     /^(outer shell|shell|outer|exterior|main fabric|main material|main|body)$/;
+  // A compound label is main if its first part is ("Body/Gusset Lining" is the body fabric).
+  const isMainLabel = (label) => MAIN_LABELS.test(label.split("/")[0].trim());
 
   const CANON = [
     [/^(polyester|poli[eé]ster|polyestere|poly|聚酯纤维|聚酯)$/, "polyester"],
@@ -117,7 +129,7 @@
 
   function pickMain(segments) {
     return (
-      segments.find((s) => s.label && MAIN_LABELS.test(s.label)) ||
+      segments.find((s) => s.label && isMainLabel(s.label)) ||
       segments.find((s) => !s.label) ||
       segments[0]
     );

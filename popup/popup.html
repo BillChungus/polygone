@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Poly Check</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h1>Poly Check</h1>
+
+  <label class="row">
+    <span class="label" id="enabled-label">Show plastic badges</span>
+    <input type="checkbox" role="switch" id="enabled" aria-labelledby="enabled-label">
+  </label>
+
+  <label class="row" id="site-row" hidden>
+    <span class="label" id="site-label"></span>
+    <input type="checkbox" role="switch" id="site" aria-labelledby="site-label">
+  </label>
+  <p class="note" id="site-note" hidden></p>
+
+  <section id="off-section" hidden>
+    <h2>Sites turned off</h2>
+    <ul id="off-list"></ul>
+  </section>
+
+  <p class="note">Changes apply straight away. Everything stays in your browser.</p>
+
+  <script src="../src/settings.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -103,6 +103,36 @@
   // neighbouring blocks together ("11% spandexTo care..."), which hides the fiber.
   const textOf = (el) => norm([...textNodes(el)].map((n) => n.data).join(" "));
 
+  // The same text, one entry per visual line (<li>, <p>, <br>, ...), so the badge can show a page's
+  // bullet list as bullets instead of one run-on paragraph. Table cells and dt/dd stay on one line.
+  const BLOCK = /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|DIV|DL|FIELDSET|FIGURE|FOOTER|FORM|H[1-6]|HEADER|LI|MAIN|NAV|OL|P|PRE|SECTION|TABLE|TBODY|THEAD|TFOOT|TR|UL)$/;
+  const CELL = /^(TD|TH|DT|DD)$/;
+  const SKIP = /^(SCRIPT|STYLE|NOSCRIPT)$/;
+  const MAX_LINES = 12;
+  const MAX_LINE = 200;
+
+  function linesOf(root) {
+    const lines = [];
+    let cur = "";
+    const flush = () => {
+      const t = norm(cur);
+      if (t) lines.push(t.length > MAX_LINE ? t.slice(0, MAX_LINE) + "…" : t);
+      cur = "";
+    };
+    (function walk(node) {
+      for (const c of node.childNodes) {
+        if (c.nodeType === 3) cur += c.data;
+        else if (c.nodeType === 1 && !SKIP.test(c.tagName)) {
+          if (c.tagName === "BR") flush();
+          else if (BLOCK.test(c.tagName)) { flush(); walk(c); flush(); }
+          else { walk(c); if (CELL.test(c.tagName)) cur += " "; }
+        }
+      }
+    })(root);
+    flush();
+    return lines.slice(0, MAX_LINES);
+  }
+
   // Some shops (Shein) never print the fabric; it only exists in the page's embedded state as
   // {"attrName":"Composition","attrValue":"94% Polyamide, 6% Elastane"}. That state is a JSON string
   // inside a script, so quotes may arrive escaped (\"). Only reads what is already in the page.
@@ -270,6 +300,7 @@
         confidence: comp.confidence,
         tier: best.tier,
         snippet: best.text.slice(0, 240),
+        lines: best.el ? linesOf(best.el) : [], // page's own line breaks, for the panel and reports
       };
     }
 

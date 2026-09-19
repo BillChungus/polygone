@@ -6,6 +6,9 @@ spandex/elastane, elastomultiester, polyurethane (PU) and PVC.
 
 - Red: more than 10% plastic. Orange: up to 10%. Green: none. Grey: fabric not found.
 - Garments with several parts (shell, lining, pockets, ...) get one box per part.
+- Click the toolbar icon to turn it off everywhere, or just for the site you're on.
+- "Report wrong reading" in the details panel opens a pre-filled GitHub issue. You see the report first and
+  press Submit yourself; the page URL is sent without its query string or fragment.
 - Everything runs locally in the page. No network requests, no data leaves the browser.
 
 ## Try it
