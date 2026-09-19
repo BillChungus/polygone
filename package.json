@@ -1,0 +1,12 @@
+{
+  "name": "poly-check",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension that shows the plastic content of clothing on product pages",
+  "scripts": {
+    "test": "node test/run.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.0"
+  }
+}

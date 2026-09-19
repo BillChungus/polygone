@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Poly Check",
+  "version": "0.1.0",
+  "description": "Shows how much polyester a garment contains, right on the product page.",
+  "minimum_chrome_version": "102",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "src/parser.js",
+        "src/detect.js",
+        "src/badge.js",
+        "src/content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}
