@@ -253,6 +253,7 @@ check("issue link carries the whole report", decodeURIComponent(R.issueUrl(rep).
   check("report view starts hidden", view.hidden, true);
   button("Report wrong reading").click();
   check("report view opens", view.hidden, false);
+  check("report view warns that GitHub issues are public", /issues are public/i.test(view.textContent), true);
   check("preview shows the clean page url", preview.textContent.includes("**Page:** https://shop.example/p/1\n"), true);
   check("preview has no query string or fragment", /utm_source|example\.com|frag/.test(preview.textContent), false);
   check("preview says what the boxes showed", preview.textContent.includes("Lining: Plastic 100%"), true);

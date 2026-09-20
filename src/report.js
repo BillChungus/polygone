@@ -13,7 +13,8 @@
 (function () {
   const NS = (window.PolyCheck = window.PolyCheck || {});
 
-  // Reports open a new issue here. Only people with access can file while the repo is private.
+  // Reports open a new issue here. The repo is public, so the issue (page URL without query string, what the
+  // badge showed, the text it read, the person's comment) is public too; the report view says so.
   const REPO = "BillChungus/poly-check";
   const MAX_SNIPPET = 240;
   const MAX_COMMENT = 500;

@@ -11,6 +11,7 @@ product detail pages only. No build step: plain JS content scripts.
   ("Shell:", "Lining:"), plastic set, `summarizeComposition`, `findHints`.
 - `src/detect.js` - product-page check, 4-tier extraction (JSON-LD, labeled section like
   "Composition", embedded script state (Shein), full-page scan), scoring, `analyzePage()` -> result object.
+- `LICENSE` - MIT, (c) 2026 BillChungus.
 - `src/report.js` - builds the "Report wrong reading" text and the pre-filled GitHub issue link. Pure.
   `REPO` at the top is where reports go: change it if the repo is renamed or moved.
 - `result.lines` (detect.js `linesOf`) is the page's own line structure for the winning block (max 12
@@ -89,8 +90,8 @@ product detail pages only. No build step: plain JS content scripts.
 - New behavior gets a case in `test/run.js`.
 
 ## Known gaps / next steps
-- Reports go to a private repo, so only invited people can file (others get a 404 on GitHub's
-  new-issue page). Make the repo public, or point `REPORT` `REPO` elsewhere, before sharing widely.
+- Reports become PUBLIC GitHub issues once the repo is public (the report view says so). `REPO` in report.js must
+  match the public repo's name.
 - Icons: the user's own design is in `icons/` (16/48/128 px PNGs, transparent), registered in the manifest
   (`icons` and `action.default_icon`). Not done: a 32 px size for sharper toolbar icons on high-DPI screens
   (Chrome scales the 48 down), and an icon that changes color per page (needs a background service worker

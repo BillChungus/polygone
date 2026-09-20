@@ -233,7 +233,7 @@
       "div",
       { hidden: true },
       el("h2", {}, "Report a wrong reading"),
-      el("p", {}, "This opens a pre-filled issue on GitHub. Nothing is sent until you press Submit there, and you can edit or cancel first."),
+      el("p", {}, "This opens a pre-filled issue on GitHub. Nothing is sent until you press Submit there, and you can edit or cancel first. GitHub issues are public: anyone can read what you submit."),
       el("label", { htmlFor: "report-comment" }, "What looks wrong? (optional)"),
       comment,
       el("p", {}, "This is what will be included:"),

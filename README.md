@@ -2,13 +2,14 @@
 
 Chrome extension (Manifest V3) that reads a product page's fabric composition and shows a small
 badge with how much plastic-based fiber the garment contains: polyester, nylon, acrylic,
-spandex/elastane, elastomultiester, polyurethane (PU) and PVC.
+spandex/elastane, elastomultiester, polyurethane (PU), PVC, polypropylene and similar.
 
 - Red: more than 10% plastic. Orange: up to 10%. Green: none. Grey: fabric not found.
 - Garments with several parts (shell, lining, pockets, ...) get one box per part.
 - Click the toolbar icon to turn it off everywhere, or just for the site you're on.
 - "Report wrong reading" in the details panel opens a pre-filled GitHub issue. You see the report first and
-  press Submit yourself; the page URL is sent without its query string or fragment.
+  press Submit yourself; the page URL is included without its query string or fragment. **GitHub issues are
+  public**, so anyone can read what you submit.
 - Everything runs locally in the page. No network requests, no data leaves the browser.
 
 ## Try it
@@ -26,3 +27,7 @@ npm test
 
 Tests run in jsdom and include a corpus of saved real product pages (`test/corpus/pages`).
 See `CLAUDE.md` for the design notes, behavior spec and known gaps.
+
+## License
+
+[MIT](LICENSE) © 2026 BillChungus
