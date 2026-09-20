@@ -121,6 +121,27 @@ const parserCases = [
   ["98% cotton, 2% Polyxyzene fibre", 2],
   ["70% cotton 30% Zorbex", 0],
   ["Save 40% off polyester tees", null],
+  // Found by the stress test (see test/fuzz.js)
+  ["50% merino wool 50% polyester", 50],              // "merino wool" was two fibers; the stray "wool" stole the 50%
+  ["20% Merino Wool 80% Polyester", 80],
+  ["21% spandex 22% merino wool 54% cotton 3% Polyester", 24],
+  ["30% cashmere wool 70% acrylic", 70],
+  ["100% new wool", 0],
+  ["Nylon (99.5%), lycra (0.5%)", 100],                // a tiny trailing fiber was dropped at "99.5"
+  ["17,2% wool, 82,5% cotton, 0,3% polyolefin.", 0.3],
+  ["80% cotton 9,5% nylon 6,2% recycled polyamide 4,3% wool", 15.7], // "nylon 6,2%" is 6.2%, not nylon grade 6
+  ["80% Nylon 6,6 20% Elastane", 100],
+  // Found by scanning ~290 real product pages (Allbirds, Cuyana, Outdoor Voices, Knix, Boohoo)
+  ["12% Merino Wool, 7% Tree-derived TENCEL™ Lyocell, 72% Organic Cotton, 9% Recycled Polyester", 9],
+  ["Made from 72% organic cotton, 12% responsibly-sourced Merino wool, 9% recycled polyester, and 7% TENCEL™ Lyocell (tree fiber)", 9],
+  ["80% Responsible Wool, 11% Cashmere, 9% Polyamide", 9],
+  ["Heavyweight Fleece 63% Reclaimed Wool, 24% Nylon, 13% Polyester", 37],
+  ["Body: 90% SUPIMA® Cotton, 10% Spandex", 10],
+  ["100% PolyesterMachine wash according to instructions on care label", 100],
+  ["Body: 77% Nylon, 23% LYCRA® XTRA LIFE™Spandex", 100],
+  ["97% Cotton, 3% ElastoMultiester", 3],
+  ["60% Cotton, 36% Polyester, 4% Carbon", 36],
+  ["Gusset 1: 86% Cotton, 10%, Spandex, 4% Carbon", 10],   // stray comma after the % sign (Knix)
   ["Upper part: Viscose 48%, Polyester 28%, Polyamide 19%, Elastane 5% Bottom part: Polyester 100% Bottom part lining: Polyester 100%", 52],
 ];
 for (const [text, want] of parserCases) check(text, plasticOf(text), want);
@@ -142,6 +163,10 @@ const pageCases = [
   ["compound label starting with body is the main fabric", comp("Lining: 100% polyester. Body/Gusset Lining: 100% cotton"), "high+none"],
   ["parts on sibling <p> lines, no heading", page("<h1>Coat</h1><div><p>Shell: 100% cotton</p><p>Lining: 100% polyester</p></div>"), "none+high"],
   ["one fiber per <li>, no label", page("<h1>Tee</h1><ul><li>60% cotton</li><li>40% polyester</li></ul>"), "high"],
+  ["numbered parts keep their numbers, one box each (Knix gussets)", comp("Body: 100% cotton. Gusset 1: 86% Cotton, 10% Spandex, 4% Carbon; Gusset 2: 96% Polyester, 4% Spandex"), "none+low+high"],
+  ["'Flex' is an unknown fiber, reported not hidden (Boohoo)", comp("Main: 15% Flex, 85% Cotton"), "unknown"],
+  ["glued words still read (Boohoo)", page("<h1>Dress</h1><h3>Product Details &amp; Care</h3><p>100% PolyesterMachine wash according to instructions on care label</p>"), "high"],
+  ["Target-style spec bullet in embedded data: '<B>Material:</B> 60% Cotton, 40% Polyester'", page("<h1>Tee</h1>", "<script>window.__DATA__=" + JSON.stringify({ pad: "x".repeat(600), bullets: [String.raw`<B>Material:</B> 60% Cotton, 40% Polyester`, String.raw`<B>Fabric Name:</B> Knit`] }).replace(/\\\\u003c/g, "\\u003c").replace(/\\\\u003e/g, "\\u003e") + "</script>"), "high"],
   ["natural fibers only stay unknown, never green", page("<h1>Dress</h1><p>Materials: Linen</p>"), "unknown"],
   ["named ignores reviews", page('<h1>Shirt</h1><div class="customer-reviews"><p>Material: Polyester</p></div>'), "unknown"],
   ["percentages beat a named fiber", page("<h1>Tee</h1><p>Material: Polyester</p><h3>Composition</h3><p>100% cotton</p>"), "none"],
@@ -329,6 +354,18 @@ check("a page with only unknown words is not a composition", plasticOf("50% Zorb
   const r = w.PolyCheck.analyzePage();
   check("result lists the unrecognised fibers", r.unrecognised.map((f) => f.name).join(","), "zorbex");
   check("status is unrecognised", r.status, "unrecognised");
+}
+
+{
+  const labels = badge(comp("Body: 100% cotton. Gusset 1: 86% Cotton, 10% Spandex, 4% Carbon; Gusset 2: 96% Polyester, 4% Spandex")).parts.join("|");
+  check("numbered part labels are kept", labels, "Body|Gusset 1|Gusset 2");
+  const fibersOf = (t) => NS.parseComposition(t).main.fibers;
+  check("a preceding word ('Fleece 63%') is not taken as a fiber when '63% Reclaimed Wool' follows",
+    fibersOf("Heavyweight Fleece 63% Reclaimed Wool, 24% Nylon, 13% Polyester").filter((f) => f.unrecognised).length, 0);
+  check("carbon is known, so 4% carbon adds up without being unrecognised",
+    fibersOf("60% Cotton, 36% Polyester, 4% Carbon").filter((f) => f.unrecognised).length, 0);
+  check("hyphenated modifier is not a separate fiber",
+    fibersOf("Made from 72% organic cotton, 12% responsibly-sourced Merino wool, 9% recycled polyester, and 7% TENCEL™ Lyocell (tree fiber)").filter((f) => f.unrecognised).length, 0);
 }
 
 // ---- 3. Color boundaries: red > 10%, orange <= 10%, green 0% ----

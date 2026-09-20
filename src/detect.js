@@ -143,11 +143,17 @@
   const STATE_COMPOSITION =
     /\\*"(?:attr_?name(?:_en)?|attrName)\\*"\s*:\s*\\*"(?:Composition|Material composition|Fabric composition|Fabric content)\\*"\s*,\s*\\*"(?:attr_?value(?:_en)?|attrValue)\\*"\s*:\s*\\*"([^"\\]{3,160})/gi;
 
+  // Target keeps its spec bullets in the same kind of state, as HTML inside JSON strings:
+  // "<B>Material:</B> 100% Cotton" (the angle brackets usually arrive as \u003c / \u003e).
+  const STATE_BULLET =
+    /(?:\\u003c|<)[Bb](?:\\u003e|>)\s*(?:Material|Fabric Content|Composition)\s*:?\s*(?:\\u003c|<)\/[Bb](?:\\u003e|>)\s*:?\s*([^"\\<]{3,120})/g;
+
   function stateCandidates() {
     const seen = new Set();
     for (const s of document.scripts) {
-      if (s.type === "application/ld+json" || s.textContent.length < 500 || !/omposition|abric content/.test(s.textContent)) continue;
+      if (s.type === "application/ld+json" || s.textContent.length < 500 || !/omposition|abric content|aterial/.test(s.textContent)) continue;
       for (const m of s.textContent.matchAll(STATE_COMPOSITION)) seen.add(norm(m[1]));
+      for (const m of s.textContent.matchAll(STATE_BULLET)) seen.add(norm(m[1]));
       if (seen.size >= 5) break;
     }
     return [...seen].map((v) => ({ tier: "state", el: null, text: `Composition: ${v}` }));

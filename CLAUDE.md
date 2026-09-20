@@ -25,6 +25,14 @@ product detail pages only. No build step: plain JS content scripts.
   switch, and a list of sites turned off with "Turn on". Needs the `activeTab` permission to read the
   current tab's host; hidden on chrome:// pages. Host names are inserted with textContent only.
 - `test/run.js` - end-to-end checks in jsdom (no browser needed). `npm install && npm test`.
+- `test/corpus/scan.js` - `npm run scan [-- --limit 20]`: fetches ~290 real product pages from curl-friendly
+  retailers (Shopify stores, M&S, Boohoo, Nike, Target), runs the detector, and writes `scan-output/report.txt`
+  (gitignored) flagging unrecognised fibers, misses, low-confidence and multi-part results. Static HTML only,
+  so sites that build fabric text in the browser (Aloyoga) appear as false misses. Resumable, restarts itself
+  in batches (jsdom leaks memory), polite (2 requests at a time). Use it to look for new fibers and layouts.
+- `test/fuzz.js` - `npm run fuzz [seed] [count]`: seeded parser stress test with an oracle (random compositions in
+  ~11 formats, known true plastic %). Found the "merino wool" bug (the stray word "wool" stole the next percentage),
+  dropped trailing 0.5% fibers and the nylon-grade misread. Run it after any change to FIBER_NAMES/CANON/regexes.
 - `test/corpus/` - saved real product pages (`pages/`, listed in `urls.txt`), checked in section 4
   of run.js. `node test/corpus/fetch.js` downloads missing ones; `inspect.js` prints what the
   extension concludes plus every fiber-like snippet on each page, for writing expectations.
@@ -83,6 +91,10 @@ product detail pages only. No build step: plain JS content scripts.
 - Corpus has ~50 pages: Shopify stores, Uniqlo, Amazon UK/US, Nike, Boohoo, M&S, Target, John Lewis,
   ASOS, H&M, Macy's, eBay, Etsy, Shein UK. Not covered: Next (403 to curl; text confirmed in the
   rendered DOM), Walmart (marketplace pages list no composition), Shein US (CAPTCHA, see below).
+- **Target:** spec bullets live only in embedded state as `<B>Material:</B> 100% Cotton` (JSON string, often
+  `<B>`); `STATE_BULLET` in detect.js reads them. Target's own data can disagree: prose says "60% cotton /
+  40% polyester" while the Material spec says 50/50, and prose may list every colour's composition
+  ("Birch 60/40; other solids 100% cotton; ..."). The structured spec is preferred (it is for the colour shown).
 - **Shein:** the fabric is never printed on the page. It only exists in an inline script's state as
   `{"attrName":"Composition","attrValue":"94% Polyamide, 6% Elastane"}` (or `attr_name`/`attr_value`, with
   escaped quotes), read by `stateCandidates()`. Shein shows a CAPTCHA (`/risk/challenge`) after a few
@@ -102,6 +114,13 @@ product detail pages only. No build step: plain JS content scripts.
   ("70%Rayon30%Linen"), "Material Type"/"Fabric Type" rows repeat the composition, and a
   "compare with similar items" table lists other products' fabrics (excluded via "compar").
   Product detection there relies on the `/dp/` URL + "Add to basket" button.
+- Real-page scan (~290 pages, 16-20 Shopify stores + M&S, Boohoo, Nike, Target; `test/corpus/scan.js`) found:
+  page text with words run together ("100% PolyesterMachine wash": `tidy()` splits lowercase-to-capital and drops
+  ®/™), qualifier words (tree-derived, responsibly-sourced, responsible, reclaimed, certified), "TENCEL Lyocell" as
+  one fiber, numbered parts ("Gusset 1/2/3" keep their numbers), a stray comma ("10%, Spandex"). Static-HTML scans
+  false-alarm on Aloyoga (fabric is in script data but rendered as text in a browser) and Jenni Kayne (nav menu).
+- **Compositions that differ by colour** (Amazon "Blue Stripes are 75% polyester...; other colours 30% linen...", Target
+  prose) are read as one composition; nothing tells the shopper it varies. Possible "varies by colour" note.
 - Fixed from the corpus: fiber modifiers ("baby alpaca", "Pima"), "recycled water bottles (RPET)"
   counted as polyester, text glued across blocks ("spandexTo care"), product-page detection
   without JSON-LD/price markup.
