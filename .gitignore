@@ -2,3 +2,10 @@ node_modules/
 *.zip
 .DS_Store
 test/corpus/scan-output/
+
+# Saved retailer pages are copies of other people's sites (and hold third-party details such as seller
+# emails), so they are NOT in the public repo. Three tiny hand-reduced fixtures are kept.
+test/corpus/pages/*
+!test/corpus/pages/zara-satin-dress.html
+!test/corpus/pages/oldnavy-dress.html
+!test/corpus/pages/nordstrom-maeve.html

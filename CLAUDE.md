@@ -40,6 +40,13 @@ product detail pages only. No build step: plain JS content scripts.
   `from-capture.js`: run the snippet in its header in the browser; the result is too big for the
   tool so it is saved to a file, which the script turns into a fixture (instructions in the file).
   A few older fixtures (Zara, Old Navy, Nordstrom) were reduced by hand from the rendered DOM.
+  **The saved pages are not in the public repo** (they are retailers' HTML and contain third-party details,
+  e.g. an eBay seller's email). `pages/*` is gitignored except the three hand-reduced fixtures. On a fresh
+  clone `npm test` skips the ~49 missing pages ("SKIP ...") and still runs everything else. Maintainers keep
+  the full set locally (the pre-public private repo holds a copy). To rebuild: `fetch.js` for pages curl can
+  reach, `from-capture.js` for the rest. Never commit a new page: it is ignored on purpose; if a page is
+  needed as a permanent public test, hand-reduce it to the fabric markup (like the Zara/Old Navy/Nordstrom ones)
+  and add a `!` line to .gitignore.
 
 ## Behavior spec (decided with the user)
 - **Plastic = polyester (PES/PET/PTT/Sorona), nylon (polyamide, Tactel, Cordura), aramid (Kevlar, Nomex), acrylic,

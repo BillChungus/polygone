@@ -444,7 +444,12 @@ const corpusCases = {
 };
 // Pages whose garment has several parts: how many boxes the badge should show
 const corpusParts = { "tkmaxx-joggers": 2, "hm-1343736001": 3, "nike-hoodie": 3, "nike-leggings": 2, "nike-shorts": 3, "asos-chiffon": 2, "macys-kensie": 1 };
+// The saved retailer pages are not part of the public repo (they are copies of other people's sites and
+// contain third-party details), so a fresh clone only has the three small hand-reduced fixtures. Missing
+// pages are skipped, not failed. Maintainers keep the full set in test/corpus/pages (gitignored).
+const skipped = [];
 for (const [name, [status, pct]] of Object.entries(corpusCases)) {
+  if (!fs.existsSync(path.join(CORPUS, `${name}.html`))) { skipped.push(name); continue; }
   const html = fs.readFileSync(path.join(CORPUS, `${name}.html`), "utf8");
   const url = html.match(/^<!-- (\S+) -->/)[1];
   const dom = new JSDOM(html, { runScripts: "outside-only", url });
@@ -457,6 +462,9 @@ for (const [name, [status, pct]] of Object.entries(corpusCases)) {
   if (name === "33mm-elliot-jacket") check("33mm-elliot-jacket: no doubled bullets or UI text", r.lines[0] === "Material: 100% Cotton" && !r.lines.some((l) => /^[•·]|Read more/.test(l)), true);
   if (name === "tkmaxx-joggers") check("tkmaxx-joggers: bullets", r.lines.includes("Pockets: 60% Cotton, 40% Polyester") && r.lines.length === 10, true);
   if (corpusParts[name] !== undefined) check(`${name}: boxes`, r.parts.length, corpusParts[name]);
+}
+if (skipped.length) {
+  console.log(`SKIP  ${skipped.length} of ${Object.keys(corpusCases).length} saved pages not present (not in the public repo). Everything else still ran.`);
 }
 
 // ---- 5. Settings: on/off rule, toolbar popup, and the content script reacting to changes ----
