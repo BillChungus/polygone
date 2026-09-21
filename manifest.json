@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Polygone",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Shows how much plastic (polyester, nylon, acrylic, spandex and more) is in a garment's fabric, right on the product page.",
   "minimum_chrome_version": "102",
   "icons": {

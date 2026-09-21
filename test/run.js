@@ -142,6 +142,17 @@ const parserCases = [
   ["97% Cotton, 3% ElastoMultiester", 3],
   ["60% Cotton, 36% Polyester, 4% Carbon", 36],
   ["Gusset 1: 86% Cotton, 10%, Spandex, 4% Carbon", 10],   // stray comma after the % sign (Knix)
+  // Found by a code review: invisible characters and camel-case brand names
+  ["60%​ cotton, 40%​ polyester", 40],           // zero-width space after the % made the whole composition unreadable
+  ["60% cotton, 40%⁠polyester", 40],                  // word joiner
+  ["60% cotton, 40% poly­ester", 40],                  // soft hyphen inside the name
+  ["45% EcoVero viscose, 55% Polyester", 55],              // "Eco Vero viscose" was read as an unknown fiber
+  ["50% LivaEco viscose, 50% Polyester", 50],
+  // Found by re-scanning ~290 real pages after the fixes
+  ["Materials: 70% Organic Cotton, 25% LENZING™ ECOVERO™, 5% Elastane", 5],   // Everlane: brand with no "viscose" after it
+  ["54% RWS merino wool, 46% cotton", 0],                                       // RWS = Responsible Wool Standard
+  ["90% polyvinyl chloride, 10% iron", 90],                                     // M&S hair clip
+  ["55% GOTS organic cotton, 45% GRS recycled polyester", 45],
   ["Upper part: Viscose 48%, Polyester 28%, Polyamide 19%, Elastane 5% Bottom part: Polyester 100% Bottom part lining: Polyester 100%", 52],
 ];
 for (const [text, want] of parserCases) check(text, plasticOf(text), want);
@@ -166,6 +177,7 @@ const pageCases = [
   ["numbered parts keep their numbers, one box each (Knix gussets)", comp("Body: 100% cotton. Gusset 1: 86% Cotton, 10% Spandex, 4% Carbon; Gusset 2: 96% Polyester, 4% Spandex"), "none+low+high"],
   ["'Flex' is an unknown fiber, reported not hidden (Boohoo)", comp("Main: 15% Flex, 85% Cotton"), "unknown"],
   ["glued words still read (Boohoo)", page("<h1>Dress</h1><h3>Product Details &amp; Care</h3><p>100% PolyesterMachine wash according to instructions on care label</p>"), "high"],
+  ["Target-style description list item in embedded data: '<li>50% Cotton 50% Polyester Preshrunk Fleece Knit</li>'", page("<h1>Hoodie</h1>", "<script>window.__DATA__=" + JSON.stringify({ pad: "x".repeat(600), description: String.raw`Details\r\n<ul><li>50% Cotton 50% Polyester Preshrunk Fleece Knit</li><li>Double-lined hood</li></ul>` }).replace(/\\\\u003c/g, "\\u003c").replace(/\\\\u003e/g, "\\u003e") + "</script>"), "high"],
   ["Target-style spec bullet in embedded data: '<B>Material:</B> 60% Cotton, 40% Polyester'", page("<h1>Tee</h1>", "<script>window.__DATA__=" + JSON.stringify({ pad: "x".repeat(600), bullets: [String.raw`<B>Material:</B> 60% Cotton, 40% Polyester`, String.raw`<B>Fabric Name:</B> Knit`] }).replace(/\\\\u003c/g, "\\u003c").replace(/\\\\u003e/g, "\\u003e") + "</script>"), "high"],
   ["natural fibers only stay unknown, never green", page("<h1>Dress</h1><p>Materials: Linen</p>"), "unknown"],
   ["named ignores reviews", page('<h1>Shirt</h1><div class="customer-reviews"><p>Material: Polyester</p></div>'), "unknown"],
@@ -220,7 +232,7 @@ check("report: title has the host only", rep.title, "Wrong reading: shop.example
 check("report: page line is the clean url", rep.body.split("\n")[0], "**Page:** https://shop.example/p/1");
 check("report: no query string anywhere", rep.body.includes("x=1"), false);
 check("report: says what the badge showed", rep.body.includes("Shell: Plastic 70% (65% polyester)"), true);
-check("report: snippet is one line, no backticks", rep.body.includes("> Shell: 65% Polyester 'x' next line"), true);
+check("report: the text it read is one line, no backticks, in a code block", rep.body.includes("```\nShell: 65% Polyester 'x' next line\n```"), true);
 check("report: includes the person's comment", rep.body.includes("**What looks wrong:** tag says cotton"), true);
 check("report: empty comment gets a prompt", R.build({ ...sample, comment: "" }).body.includes("(add details here)"), true);
 const longComment = R.build({ ...sample, comment: "a".repeat(900) }).body.split("**What looks wrong:** ")[1].split("\n")[0];
@@ -228,6 +240,26 @@ check("report: comment is capped at 500 characters", longComment.length, 500);
 check("report: page with no usable url says so", R.build({ ...sample, href: "chrome://x" }).body.includes("(not shared)"), true);
 check("issue link targets the repo's new-issue page", R.issueUrl(rep).startsWith(`https://github.com/${R.REPO}/issues/new?title=`), true);
 check("issue link carries the whole report", decodeURIComponent(R.issueUrl(rep).split("&body=")[1]), rep.body);
+{
+  // Scraped text is untrusted: it must stay inert in a public issue
+  const evil = R.build({ ...sample, result: { status: "found", tier: "scan", snippet: "x", lines: ["Ping @someone see [click](http://evil.example) <img src=x> #123", "100% cotton"] } });
+  const fence = evil.body.split("```");
+  check("report: scraped text sits inside a code block (mentions, links and HTML stay inert)", fence.length === 3 && fence[1].includes("@someone") && fence[1].includes("<img"), true);
+  check("report: nothing scraped appears outside the code block", /@someone|evil\.example|<img/.test(fence[0] + fence[2]), false);
+  check("report: a backtick in scraped text cannot close the code block", R.build({ ...sample, result: { status: "found", snippet: "a ``` b" } }).body.split("```").length, 3);
+
+  // Size: GitHub rejects very long links
+  const longLines = Array.from({ length: 12 }, () => "Shell: 65% polyester, 29% cotton ✓ – café ".repeat(6).slice(0, 200));
+  const boxes = Array.from({ length: 5 }, (_, i) => `Part ${i}: Plastic 65% (65% polyester, 5% spandex/elastane, 30% cotton, 20% other fibres, more text here…)`);
+  const worst = R.build({ href: "https://shop.example/" + "very-long-product-slug-".repeat(20) + "/p/1", lines: boxes, result: { status: "found", tier: "labeled", snippet: "x".repeat(240), lines: longLines }, version: "1.0.0", comment: "é ".repeat(250) });
+  check("report: the worst case still fits in a GitHub link", R.issueUrl(worst).length <= 7000, true);
+  const cjk = R.build({ ...sample, result: { status: "found", tier: "scan", snippet: "x", lines: Array.from({ length: 12 }, () => "面料成分：涤纶 65%，棉 35% 请勿漂白 ".repeat(6)) } });
+  check("report: a page in Chinese (9 encoded bytes per character) still fits", R.issueUrl(cjk).length <= 7000, true);
+  check("report: the preview is exactly what the link carries", decodeURIComponent(R.issueUrl(worst).split("&body=")[1]), worst.body);
+  const twelve = R.build({ ...sample, result: { ...sample.result, lines: Array.from({ length: 12 }, (_, i) => "line " + i) } });
+  check("report: a normal report is not shortened", twelve.body.includes("line 11") && twelve.body.includes("tag says cotton"), true);
+  check("report: a very long page path is cut", R.safeUrl("https://shop.example/" + "a".repeat(1000)).length <= 330, true);
+}
 
 // The panel: opening the report view, editing, cancelling. Any network call or window.open would count.
 {
@@ -331,7 +363,7 @@ const fromJson = bulletsIn(page("<h1>Legging</h1>", '<script type="application/l
 check("data without page lines uses a plain quote", fromJson.quote, "78% Polyamide, 22% Elastane");
 
 const bulletReport = R.build({ ...sample, result: { ...sample.result, lines: ["Blue", "Shell: 65% Polyester"] } });
-check("report quotes bullet lines", bulletReport.body.includes("> - Blue\n> - Shell: 65% Polyester"), true);
+check("report puts bullet lines in a code block, one per line", bulletReport.body.includes("```\nBlue\nShell: 65% Polyester\n```"), true);
 
 // ---- Fibers the list doesn't know: accepted when they complete a composition, always reported ----
 console.log("\nUnknown fibers");
@@ -468,6 +500,42 @@ if (skipped.length) {
   console.log(`SKIP  ${skipped.length} of ${Object.keys(corpusCases).length} saved pages not present (not in the public repo). Everything else still ran.`);
 }
 
+// ---- Store package: what ships, the Web Store checks, and that the zip is sound ----
+console.log("\nPackage");
+{
+  const ROOT = path.join(__dirname, "..");
+  const pack = require(path.join(ROOT, "scripts", "package.js"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.json"), "utf8"));
+  const version = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+  const files = pack.fileList(manifest);
+
+  const needed = ["manifest.json", "LICENSE", "popup/popup.html", "popup/popup.css", "popup/popup.js", ...manifest.content_scripts[0].js, ...Object.values(manifest.icons)];
+  check("package: includes the manifest, license, popup, every content script and icon", needed.every((f) => files.includes(f)), true);
+  check("package: every listed file exists", files.every((f) => fs.existsSync(path.join(ROOT, f))), true);
+  check("package: nothing from tests, scripts, docs or node_modules", files.some((f) => /^(test|scripts|node_modules|dist)\//.test(f) || /\.md$/i.test(f)), false);
+  check("package: passes the Web Store checks", pack.problems(manifest, files).join("; "), "");
+  check("package: manifest version matches package.json", manifest.version, version);
+
+  const built = pack.build();
+  const back = pack.unzip(built.buffer);
+  check("package: zip holds exactly the listed files", back.map((e) => e.name).join(","), files.join(","));
+  check("package: every file in the zip is byte-identical to the source", back.every((e) => Buffer.compare(e.data, fs.readFileSync(path.join(ROOT, e.name))) === 0), true);
+  check("package: entry names use forward slashes", back.every((e) => !e.name.includes("\\")), true);
+  check("package: building twice gives identical bytes", Buffer.compare(pack.build().buffer, built.buffer), 0);
+  check("package: stays well under the store's size limit", built.buffer.length < 1024 * 1024, true);
+
+  const problem = (m, f = files) => pack.problems(m, f).join("; ");
+  check("package check: over-long description is caught", /description/.test(problem({ ...manifest, description: "x".repeat(133) })), true);
+  check("package check: over-long name is caught", /name/.test(problem({ ...manifest, name: "x".repeat(76) })), true);
+  check("package check: version mismatch is caught", /does not match/.test(problem({ ...manifest, version: "9.9.9" })), true);
+  check("package check: bad version format is caught", /not 1 to 4/.test(problem({ ...manifest, version: "1.0-beta" })), true);
+  check("package check: missing 128 px icon is caught", /128/.test(problem({ ...manifest, icons: { 16: manifest.icons[16], 48: manifest.icons[48] } })), true);
+  check("package check: wrong icon size is caught", /expected 16x16/.test(problem({ ...manifest, icons: { ...manifest.icons, 16: manifest.icons[128] } })), true);
+  check("package check: a missing file is caught", /missing/.test(problem(manifest, [...files, "src/nope.js"])), true);
+  check("package check: test files are refused", /should not ship/.test(problem(manifest, [...files, "test/run.js"])), true);
+  check("package check: a corrupt zip is refused", (() => { try { pack.unzip(Buffer.from("not a zip")); return "accepted"; } catch { return "refused"; } })(), "refused");
+}
+
 // ---- 5. Settings: on/off rule, toolbar popup, and the content script reacting to changes ----
 console.log("\nSettings");
 const S = load("<html><body></body></html>");
@@ -484,6 +552,14 @@ check("a parent domain covers subdomains", on({ disabledHosts: ["amazon.co.uk"] 
 check("lookalike host is not covered", on({ disabledHosts: ["shop.example"] }, "notshop.example"), true);
 check("empty entry matches nothing", on({ disabledHosts: [""] }, "shop.example"), true);
 check("host case is ignored", on({ disabledHosts: ["Shop.Example"] }, "SHOP.example"), false);
+// Damaged stored data must never make the on/off question throw (that would switch Polygone off everywhere)
+const safely = (settings, host) => { try { return st.isOn(settings, host); } catch { return "THREW"; } };
+check("settings: a string instead of a list is ignored, not fatal", safely({ enabled: true, disabledHosts: "shop.example" }, "shop.example"), true);
+check("settings: a number instead of a list is ignored", safely({ enabled: true, disabledHosts: 5 }, "shop.example"), true);
+check("settings: null instead of a list is ignored", safely({ enabled: true, disabledHosts: null }, "shop.example"), true);
+check("settings: non-text entries in the list are skipped, real ones still work", safely({ enabled: true, disabledHosts: [null, 5, {}, "shop.example"] }, "shop.example"), false);
+check("settings: missing settings object means on", safely(null, "shop.example"), true);
+check("settings: only an explicit false turns it off everywhere", safely({ enabled: 0 }, "shop.example"), true);
 
 // Fake chrome API backed by a plain object; listeners are kept so tests can fire storage changes.
 function fakeChrome(store, tabUrl) {
@@ -573,6 +649,40 @@ async function runContent(store) {
   check("popup: no site switch without a tab", p.$("site-row").hidden, true);
   p = await openPopup({ disabledHosts: ["<img src=x onerror=alert(1)>"] }, undefined);
   check("popup: stored host text is plain text, not markup", p.w.document.querySelectorAll("img").length, 0);
+  p = await openPopup({ enabled: "yes", disabledHosts: "junk" }, "https://shop.example/");
+  check("popup: damaged stored settings still render", p.$("site").checked && !p.$("off-section").hidden === false, true);
+  {
+    // A save that fails must be reported, not swallowed
+    p = await openPopup({}, "https://shop.example/");
+    p.w.chrome.storage.sync.set = async () => { throw new Error("QUOTA_BYTES_PER_ITEM quota exceeded"); };
+    check("popup: no error shown before anything fails", p.$("save-error").hidden, true);
+    p.$("site").click();
+    await tick();
+    check("popup: a failed save says so", p.$("save-error").hidden === false && /couldn't save/i.test(p.$("save-error").textContent), true);
+    p.w.chrome.storage.sync.set = async () => {};
+    p.$("site").click();
+    await tick();
+    check("popup: the error goes away after a save works", p.$("save-error").hidden, true);
+  }
+  {
+    // Badge: Escape closes the open details; the print rule hides the overlay
+    const w = load(comp("Shell: 100% cotton. Lining: 100% polyester"));
+    w.Polygone.badge.render(w.Polygone.analyzePage(), {});
+    const sr = w.document.getElementById("polygone-host").shadowRoot;
+    const pill = sr.querySelector(".pill");
+    const panel = sr.querySelector(".panel");
+    const key = (target, k) => target.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true, composed: true }));
+    key(pill, "Escape");
+    check("badge: Escape with the details closed does nothing (the page keeps its own Escape)", panel.hidden, true);
+    pill.click();
+    check("badge: details open after a click", panel.hidden, false);
+    key(pill, "a");
+    check("badge: other keys leave the details open", panel.hidden, false);
+    key(pill, "Escape");
+    check("badge: Escape closes the details", panel.hidden, true);
+    check("badge: aria-expanded is reset when Escape closes it", pill.getAttribute("aria-expanded"), "false");
+    check("badge: hidden when printing", /@media print\s*\{\s*\.wrap\s*\{\s*display:\s*none/.test(sr.querySelector("style").textContent), true);
+  }
 
   // Content script: badge appears, then follows the settings live
   let c = await runContent({});
@@ -593,6 +703,156 @@ async function runContent(store) {
   check("content: starts with no badge when turned off", c.has(), false);
   c = await runContent({ disabledHosts: ["shop.example"] });
   check("content: starts with no badge on a turned-off site", c.has(), false);
+
+  // ---- Bug-hunt regressions: content script lifecycle ----
+  console.log("\nContent script lifecycle");
+  const FILES = ["parser.js", "detect.js", "report.js", "badge.js", "settings.js", "content.js"];
+  async function live(html, opts = {}) {
+    const dom = new JSDOM(html, { runScripts: "outside-only", url: opts.url || "https://shop.example/p/1", contentType: opts.contentType });
+    const w = dom.window;
+    w.chrome = fakeChrome({}, null);
+    let adds = 0; // how many times the badge was (re)created: guards against feedback loops
+    new w.MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.id === "polygone-host") adds++; }).observe(w.document, { childList: true, subtree: true });
+    let done;
+    for (const f of FILES) done = w.eval(fs.readFileSync(path.join(SRC, f), "utf8"));
+    await done; // content.js is an async IIFE
+    return { w, badges: () => w.document.querySelectorAll("#polygone-host").length, adds: () => adds, text: () => w.document.getElementById("polygone-host")?.shadowRoot.textContent || "" };
+  }
+  const head = '<meta property="og:type" content="product">';
+  const withComp = "<h1>Tee</h1><h3>Composition</h3><p>100% polyester</p>";
+
+  {
+    // 1. A page that changes constantly must still get scanned (a debounce would restart on every change)
+    const p = await live(page("<h1>Tee</h1><p>Loading…</p>", head));
+    const spin = setInterval(() => p.w.document.body.append(p.w.document.createElement("span")), 60);
+    await tick(250);
+    p.w.document.body.insertAdjacentHTML("beforeend", "<h3>Composition</h3><p>100% polyester</p>");
+    await tick(1400);
+    clearInterval(spin);
+    check("content: a page that never stops changing still gets its badge", p.badges(), 1);
+  }
+  {
+    // 2. Client-side navigation to another product must not leave the old product's badge up
+    const p = await live(page(withComp, head), { url: "https://shop.example/p/one" });
+    await tick(80);
+    check("content: badge shows for the first product", p.badges(), 1);
+    p.w.history.pushState({}, "", "/p/two");
+    p.w.document.body.innerHTML = "<h1>Other tee</h1><p>Details loading…</p>";
+    await tick(900);
+    check("content: the previous product's badge is removed when the URL changes", p.badges(), 0);
+  }
+  {
+    // 3. Frameworks that swap <body> (Turbo, htmx): the observer must survive it
+    const p = await live(page("<h1>Tee</h1><p>Loading…</p>", head));
+    await tick(80);
+    const newBody = p.w.document.createElement("body");
+    newBody.innerHTML = withComp;
+    p.w.document.documentElement.replaceChild(newBody, p.w.document.body);
+    await tick(900);
+    check("content: still works after the page replaces <body>", p.badges(), 1);
+    newBody.insertAdjacentHTML("beforeend", "<p>more</p>");
+    await tick(50);
+  }
+  {
+    // 4. If the page removes our badge, it comes back
+    const p = await live(page(withComp, head));
+    await tick(80);
+    p.w.document.getElementById("polygone-host").remove();
+    p.w.document.body.append(p.w.document.createElement("i")); // any change wakes the scan
+    await tick(900);
+    check("content: a badge removed by the page is restored", p.badges(), 1);
+  }
+  {
+    // 5. Adding our own badge must not trigger scan after scan
+    const p = await live(page(withComp, head));
+    await tick(1800);
+    check("content: no re-render loop (badge created once)", p.adds(), 1);
+  }
+  {
+    // 6. A document with no <body> (SVG/XML) must not throw
+    let threw = false;
+    try {
+      const p = await live('<svg xmlns="http://www.w3.org/2000/svg"><text>100% polyester</text></svg>', { contentType: "image/svg+xml" });
+      await tick(100);
+      check("content: an SVG document gets no badge", p.badges(), 0);
+    } catch { threw = true; }
+    check("content: an SVG document does not throw", threw, false);
+  }
+  {
+    // 7. A scan that throws is contained and later scans still work. The page starts undecided (no fabric yet),
+    //    so scans keep happening; a page with a final answer is deliberately not scanned again.
+    const p = await live(page("<h1>Tee</h1><button>Add to bag</button>", head));
+    await tick(120);
+    const real = p.w.Polygone.analyzePage;
+    let attempts = 0;
+    p.w.Polygone.analyzePage = () => { attempts++; throw new Error("boom"); };
+    p.w.document.body.insertAdjacentHTML("beforeend", "<p>Material: coming soon</p>"); // matters, so a scan really runs
+    await tick(800);
+    check("content: the scan was attempted (and threw, contained)", attempts >= 1, true);
+    p.w.Polygone.analyzePage = real;
+    p.w.document.body.insertAdjacentHTML("beforeend", "<h3>Composition</h3><p>100% cotton</p>");
+    await tick(900);
+    check("content: a failed scan does not stop later scans", p.badges(), 1);
+  }
+  {
+    // 9. Only changes that could matter cost a scan (carousels, timers and chat widgets never do)
+    const p = await live(page("<h1>Plain tee</h1><button>Add to bag</button>", head));
+    await tick(120);
+    let scans = 0;
+    const real = p.w.Polygone.analyzePage;
+    p.w.Polygone.analyzePage = () => { scans++; return real(); };
+    for (let i = 0; i < 25; i++) {
+      const d = p.w.document.createElement("div");
+      d.textContent = `tick ${i} of the carousel`;
+      p.w.document.body.append(d);
+      await tick(30);
+    }
+    await tick(600);
+    check("content: 25 unrelated page changes cause no scan at all", scans, 0);
+    // (text that mentions fabric but gives no answer, so the page stays undecided and keeps being scanned)
+    p.w.document.body.insertAdjacentHTML("beforeend", "<p>Material: soft and lovely</p>");
+    await tick(700);
+    check("content: a change that mentions fabric does cause a scan", scans >= 1, true);
+    const before = scans;
+    p.w.document.body.insertAdjacentHTML("beforeend", "<script type='application/ld+json'>{}</script>");
+    await tick(700);
+    check("content: new structured data (a <script>) causes a scan", scans > before, true);
+    const c2 = scans;
+    p.w.document.body.firstElementChild.firstChild.data = "Plain tee, now 20% off";
+    await tick(700);
+    check("content: text changed in place that mentions a percentage causes a scan", scans > c2, true);
+  }
+  {
+    // 8. Unrecognised fibers are a final answer: the page is not rescanned forever
+    const p = await live(page("<h1>Tee</h1><h3>Composition</h3><p>98% cotton, 2% Zorbex</p>", head));
+    await tick(80);
+    check("content: an unrecognised-fiber result is shown", /not recognised/i.test(p.text()), true);
+  }
+
+  // ---- Bug-hunt regressions: what the detector reads ----
+  console.log("\nDetector regressions");
+  const state = (html) => badge(html).states.join("+");
+  check("a 'product-preview' wrapper does not hide the fabric (it contains 'review')", state(page('<h1>Tee</h1><div class="product-preview"><h3>Composition</h3><p>100% polyester</p></div>')), "high");
+  check("a class on <body> ('has-reviews') does not blank the whole page", state(`<html><head>${head}</head><body class="has-reviews"><h1>Tee</h1><h3>Composition</h3><p>100% polyester</p></body></html>`), "high");
+  check("'unrelated-content' is not 'related'", state(page('<h1>Tee</h1><div class="unrelated-content"><h3>Composition</h3><p>100% polyester</p></div>')), "high");
+  check("camelCase 'customerReviews' is still excluded", state(page('<h1>Tee</h1><h3>Composition</h3><p>100% cotton</p><div class="customerReviews"><p>Feels like 100% polyester</p></div>')), "none");
+  check("an id like 'recently-viewed' is still excluded", state(page('<h1>Tee</h1><h3>Composition</h3><p>100% cotton</p><section id="recentlyViewed"><p>Other tee 100% polyester</p></section>')), "none");
+  check("'comparison' tables are still excluded", state(page('<h1>Tee</h1><h3>Composition</h3><p>100% cotton</p><div class="product-comparison-table"><p>Rival 100% polyester</p></div>')), "none");
+  check("<nav> and <footer> are still excluded", state(page('<h1>Tee</h1><h3>Composition</h3><p>100% cotton</p><footer><p>Shop 100% polyester basics</p></footer>')), "none");
+  const cards = Array.from({ length: 70 }, (_, i) => `<div class="recommended-item"><p>Tee ${i} 100% cotton</p></div>`).join("");
+  check("70 recommendation cards before the real fabric do not use up the candidate cap", state(page(`<h1>Tee</h1>${cards}<p>Made from 100% polyester</p>`)), "high");
+
+  check("named: whitespace before the colon ('Material : Polyester')", state(page("<h1>Tee</h1><p>Material : Polyester</p>")), "named");
+  check("named: no space after the colon, value starting with s ('Material:Spandex, Cotton')", state(page("<h1>Tee</h1><p>Material:Spandex, Cotton</p>")), "named");
+  check("named: 'recycled poly' alone is too vague to count", state(page("<h1>Tee</h1><p>Material: Recycled poly</p>")), "unknown");
+  {
+    const w = load(page("<h1>Tee</h1><h3>Composition</h3><p>40% cotton</p><p>Material: Polyester</p>"));
+    const r = w.Polygone.analyzePage();
+      check("the main fabric keeps its box even when it comes after five other parts",
+    badge(comp("Lining: 100% polyester. Trim: 100% nylon. Rib: 100% acrylic. Hood: 100% nylon. Pocket: 100% polyester. Shell: 100% cotton.")).parts.join("|"),
+    "Lining|Trim|Rib|Hood|Shell");
+  check("a named-fiber result carries no leftover segments from a low-confidence composition", r.status === "named" && r.segments === undefined && r.parts === undefined, true);
+  }
 
   console.log(failed ? `\n${failed} check(s) failed` : "\nAll checks passed");
   process.exit(failed ? 1 : 0);

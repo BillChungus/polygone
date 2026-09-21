@@ -22,10 +22,15 @@ spandex/elastane, elastomultiester, polyurethane (PU), PVC, polypropylene and si
 
 ```
 npm install
-npm test
+npm test            # end-to-end checks in jsdom, no browser needed
+npm run fuzz        # parser stress test with random compositions
+npm run fuzz:dom    # stress test with random hostile pages
+npm run package     # builds dist/polygone-<version>.zip for the Chrome Web Store
 ```
 
-Tests run in jsdom and include a corpus of saved real product pages (`test/corpus/pages`).
+Needs Node 22.22+ or 24.15+ (jsdom's requirement). The tests also check a set of saved real product pages when
+they are present in `test/corpus/pages`; those pages belong to the retailers, so they are not in this repository,
+and a fresh clone skips them and runs everything else.
 See `CLAUDE.md` for the design notes, behavior spec and known gaps.
 
 ## License

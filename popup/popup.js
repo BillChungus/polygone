@@ -16,6 +16,9 @@
   } catch (e) {
     console.debug("[Polygone] storage unavailable, using defaults", e);
   }
+  // Damaged stored data must not break the popup.
+  settings.enabled = settings.enabled !== false;
+  settings.disabledHosts = S.cleanHosts(settings.disabledHosts);
 
   // The active tab's host. Needs the activeTab permission, which the toolbar click grants.
   // Null on chrome:// pages, the Web Store, new tab, etc.
@@ -26,8 +29,18 @@
     if (url.protocol === "http:" || url.protocol === "https:") host = S.normalizeHost(url.hostname);
   } catch { /* no tab or no access: the site switch stays hidden */ }
 
-  const save = () =>
-    chrome.storage.sync.set({ enabled: settings.enabled, disabledHosts: settings.disabledHosts });
+  // Saving can fail (Chrome's sync storage allows 8 KB per item, which a very long list of sites could hit).
+  // Say so instead of leaving a switch that looks changed but was not saved.
+  async function save() {
+    try {
+      await chrome.storage.sync.set({ enabled: settings.enabled, disabledHosts: settings.disabledHosts });
+      $("save-error").hidden = true;
+    } catch (e) {
+      console.debug("[Polygone] could not save settings", e);
+      $("save-error").textContent = "Couldn't save that change, so it won't apply.";
+      $("save-error").hidden = false;
+    }
+  }
 
   function render() {
     $("enabled").checked = settings.enabled;

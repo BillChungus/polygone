@@ -16,14 +16,24 @@
   const MIN_SCORE = 3;
   const MAX_SCAN_CANDIDATES = 60;
 
-  // Regions that mention fabrics but aren't about the main product.
-  const EXCLUDE_KEYWORDS = [
-    "review", "recommend", "carousel", "related", "similar",
-    "upsell", "cross-sell", "recently", "compar", "sponsored", "also-bought", "customers-also",
-  ];
-  const EXCLUDE_SELECTOR =
-    EXCLUDE_KEYWORDS.map((k) => `[class*="${k}" i],[id*="${k}" i]`).join(",") +
-    ",footer,nav";
+  // Regions that mention fabrics but aren't about the main product: reviews, "you may also like",
+  // comparison tables, sponsored slots, footers and menus.
+  //
+  // Matched on WHOLE WORDS in an element's class/id (camelCase split first: "customerReviews"). A plain
+  // substring match wrongly excluded "product-preview" (contains "review") and "unrelated", hiding the real
+  // fabric section on any page that used such a class. Only elements BELOW <body> count: a class on <body>
+  // or <html> ("has-reviews") must never blank the whole page.
+  const EXCLUDE_WORDS =
+    /(?:^|[^a-z])(?:reviews?|recommend(?:s|ed|ation|ations)?|carousel|related|similar|upsell|cross[- ]?sell|recently|compar(?:e|es|ing|ison|isons)|sponsored|also[- ]?bought|customers?[- ]?also)(?:[^a-z]|$)/;
+
+  function isExcluded(el) {
+    for (let n = el; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      if (n.tagName === "FOOTER" || n.tagName === "NAV") return true;
+      const words = `${n.id || ""} ${n.getAttribute("class") || ""}`.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+      if (words.length > 1 && EXCLUDE_WORDS.test(words)) return true;
+    }
+    return false;
+  }
 
   const LABEL_TEXT =
     /^(composition|material\s+composition|(?:material|fabric)\s+type|materials?|fabrics?|fabric\s*(?:&|and)\s*care|materials?\s*(?:&|and)\s*care|care\s*(?:&|and)\s*materials?|details|(?:product\s+)?details\s*(?:&|and)\s*care|product details|product information|description)\s*:?$/i;
@@ -148,12 +158,20 @@
   const STATE_BULLET =
     /(?:\\u003c|<)[Bb](?:\\u003e|>)\s*(?:Material|Fabric Content|Composition)\s*:?\s*(?:\\u003c|<)\/[Bb](?:\\u003e|>)\s*:?\s*([^"\\<]{3,120})/g;
 
+  // ...and its product description is HTML inside a JSON string: "<ul><li>50% Cotton 50% Polyester</li>...".
+  // A rendered page shows that as a list; before it renders (or when it is behind a tab) it exists only here.
+  const STATE_LI = /(?:\\u003c|<)li(?:\\u003e|>)([^"\\<]{3,140})(?:\\u003c|<)\/li(?:\\u003e|>)/gi;
+
   function stateCandidates() {
     const seen = new Set();
     for (const s of document.scripts) {
-      if (s.type === "application/ld+json" || s.textContent.length < 500 || !/omposition|abric content|aterial/.test(s.textContent)) continue;
+      if (s.type === "application/ld+json" || s.textContent.length < 500 || !/omposition|abric content|aterial|%/.test(s.textContent)) continue;
       for (const m of s.textContent.matchAll(STATE_COMPOSITION)) seen.add(norm(m[1]));
       for (const m of s.textContent.matchAll(STATE_BULLET)) seen.add(norm(m[1]));
+      let li = 0;
+      for (const m of s.textContent.matchAll(STATE_LI)) {
+        if (hasFiberPattern(m[1]) && li++ < 3) seen.add(norm(m[1]));
+      }
       if (seen.size >= 5) break;
     }
     return [...seen].map((v) => ({ tier: "state", el: null, text: `Composition: ${v}` }));
@@ -180,7 +198,7 @@
       const t = node.data.trim();
       if (t.length < 3 || t.length > 40 || !LABEL_TEXT.test(t)) continue;
       const block = blockAfterLabel(node.parentElement);
-      if (block) out.push({ tier: "labeled", el: block, text: textOf(block) });
+      if (block && !isExcluded(block)) out.push({ tier: "labeled", el: block, text: textOf(block) });
     }
     return out;
   }
@@ -208,6 +226,8 @@
       }
       if (seen.has(el)) continue;
       seen.add(el);
+      // Excluded regions (reviews, carousels) must not use up the candidate cap and crowd out the real fabric.
+      if (isExcluded(el)) continue;
       out.push({ tier: "scan", el, text: textOf(el) });
       if (out.length >= MAX_SCAN_CANDIDATES) break;
     }
@@ -220,9 +240,9 @@
   // plastic is present even though no amount is given. Only short label values count: a whole page
   // mentions "polyester" in reviews and other products.
   const NAMED_LABEL =
-    /^(?:materials?|material type|material composition|fabrics?|fabric type|fabric content|composition|outer material)s*:?$/i;
+    /^(?:materials?|material type|material composition|fabrics?|fabric type|fabric content|composition|outer material)\s*:?$/i;
   const NAMED_INLINE =
-    /^(?:materials?|material type|fabrics?|fabric type|composition)s*:s*(.{2,120})$/i;
+    /^(?:materials?|material type|fabrics?|fabric type|composition)\s*:\s*(.{2,120})$/i;
   const NAMED_MAX = 120;
 
   function valueAfterLabel(labelEl) {
@@ -239,7 +259,7 @@
   function namedFiberCandidates() {
     const out = [];
     const add = (tier, el, text) => {
-      if (el && el.closest(EXCLUDE_SELECTOR)) return;
+      if (el && isExcluded(el)) return;
       const all = NS.findNamedFibers(text);
       const plastic = all.filter(NS.isPlastic);
       if (plastic.length) out.push({ tier, text, all, plastic });
@@ -319,8 +339,9 @@
       // No usable percentages, but a "Material: Polyester" line still tells us plastic is in there.
       const named = namedFiberCandidates()[0];
       if (named) {
+        // A fresh result, not `...result`: a low-confidence composition that was found first would otherwise
+        // leave its segments behind, and the panel would show them next to the named-fiber text.
         return {
-          ...result,
           status: "named",
           fibers: named.plastic,
           allFibers: named.all,
@@ -335,10 +356,11 @@
   }
 
   function analyzePage() {
+    if (!document.body) return { status: "unknown" }; // XML/SVG documents have no <body>
     const candidates = [...jsonLdCandidates(), ...labeledCandidates(), ...scanCandidates(), ...stateCandidates()];
     let best = null;
     for (const c of candidates) {
-      if (c.el && c.el.closest(EXCLUDE_SELECTOR)) continue;
+      if (c.el && isExcluded(c.el)) continue;
       const composition = parseComposition(c.text);
       if (!composition) continue;
       const s = score(c.text, c.tier, composition);

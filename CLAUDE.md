@@ -18,17 +18,29 @@ may still be called `poly-check`; that is only a directory name.
   ("Shell:", "Lining:"), plastic set, `summarizeComposition`, `findHints`.
 - `src/detect.js` - product-page check, 4-tier extraction (JSON-LD, labeled section like
   "Composition", embedded script state (Shein), full-page scan), scoring, `analyzePage()` -> result object.
+  Parts of the page that talk about OTHER products (reviews, recommendations, carousels, "compare", footer, nav) are
+  skipped by `isExcluded(el)`: it matches WHOLE WORDS in class/id (camelCase split), never substrings, so a class
+  like "preview" or "has-reviews" on <body> no longer blanks the page, and it stops at <body>/<html>. Keep it
+  that way: a substring test once made a page with `class="product-preview"` invisible to the extension.
 - `LICENSE` - MIT, (c) 2026 BillChungus.
 - `src/report.js` - builds the "Report wrong reading" text and the pre-filled GitHub issue link. Pure.
-  `REPO` at the top is where reports go: change it if the repo is renamed or moved.
+  `REPO` at the top is where reports go: change it if the repo is renamed or moved. The text the extension read
+  from the page is scraped, so it goes inside a fenced code block (a page can't inject markdown, links or
+  @mentions into a public issue; backticks in scraped text become apostrophes so nothing closes the block
+  early). The link is kept to
+  `MAX_LINK` (7000) characters: `build()` shrinks the report (fewer quoted lines, then no quote, then a shorter
+  comment) until it fits, because GitHub rejects very long URLs.
 - `result.lines` (detect.js `linesOf`) is the page's own line structure for the winning block (max 12
   lines): the details panel shows it as bullets (fabric lines in bold) and reports quote it as a list.
   JSON-LD/embedded-state results have no lines and fall back to a plain quote of `snippet`.
 - `src/badge.js` - shadow-DOM badge (states, colors, detail panel, report view).
 - `src/settings.js` - setting names/defaults and `isOn(settings, hostname)` (www ignored, a parent
-  domain covers its subdomains). Shared by content.js and the popup; pure, no chrome.* calls.
-- `src/content.js` - loads settings (chrome.storage.sync), debounced MutationObserver, SPA nav,
-  settle delay, orchestration. Reacts to storage changes so popup switches apply instantly.
+  domain covers its subdomains). Shared by content.js and the popup; pure, no chrome.* calls. Stored values are
+  untrusted: a damaged `disabledHosts` (not a list, entries that aren't strings) or `enabled` must never switch
+  the extension off everywhere, so `isOn`/`hostDisabled`/`cleanHosts` tolerate anything (tested).
+- `src/content.js` - loads settings (chrome.storage.sync), MutationObserver, SPA nav, settle delay,
+  orchestration. Reacts to storage changes so popup switches apply instantly. It runs on EVERY page the person
+  visits, so it is built to be cheap and hard to break (see "Content script rules" below).
 - `popup/` - toolbar popup (popup.html/css/js): "Show plastic badges" switch, "On for <this site>"
   switch, and a list of sites turned off with "Turn on". Needs the `activeTab` permission to read the
   current tab's host; hidden on chrome:// pages. Host names are inserted with textContent only.
@@ -38,9 +50,15 @@ may still be called `poly-check`; that is only a directory name.
   (gitignored) flagging unrecognised fibers, misses, low-confidence and multi-part results. Static HTML only,
   so sites that build fabric text in the browser (Aloyoga) appear as false misses. Resumable, restarts itself
   in batches (jsdom leaks memory), polite (2 requests at a time). Use it to look for new fibers and layouts.
-- `test/fuzz.js` - `npm run fuzz [seed] [count]`: seeded parser stress test with an oracle (random compositions in
-  ~11 formats, known true plastic %). Found the "merino wool" bug (the stray word "wool" stole the next percentage),
-  dropped trailing 0.5% fibers and the nylon-grade misread. Run it after any change to FIBER_NAMES/CANON/regexes.
+- `test/fuzz.js` - `npm run fuzz` (or `node test/fuzz.js <seed> <count>` for another seed/size): seeded parser stress
+  test with an oracle (random compositions in ~11 formats, known true plastic %). Found the "merino wool" bug (the
+  stray word "wool" stole the next percentage), dropped trailing 0.5% fibers and the nylon-grade misread. Run it
+  after any change to FIBER_NAMES/CANON/regexes. Last full run: 5 seeds x 60,000 compositions, 0 wrong.
+- `test/dom-fuzz.js` - `npm run fuzz:dom` (or `node test/dom-fuzz.js <seed> <documents>`): random hostile documents
+  (deep/odd nesting, look-alike class names like "preview"/"reviews", zero-width text, broken JSON-LD, huge text)
+  through detector + badge + report builder; checks no throw/hang, values in range, a badge always appears, report
+  link fits, scraped text never becomes markup. jsdom leaks memory, so run several seeds of ~400, not one huge run.
+  Last full run: 12 seeds x 400 documents, 0 problems, slowest 76 ms.
 - `test/corpus/` - saved real product pages (`pages/`, listed in `urls.txt`), checked in section 4
   of run.js. `node test/corpus/fetch.js` downloads missing ones; `inspect.js` prints what the
   extension concludes plus every fiber-like snippet on each page, for writing expectations.
@@ -95,10 +113,59 @@ may still be called `poly-check`; that is only a directory name.
   on GitHub. Keep it that way: no fetch/XHR/beacon/window.open for reports (tested).
 - Color is never the only signal: keep the text label ("Plastic 12%").
 - New behavior gets a case in `test/run.js`.
+- Text from the page is data, never markup or a command: badge text is set with textContent/`append(string)`, and
+  the report puts scraped text in a code block. Unrecognised fiber names can only contain letters, spaces and
+  hyphens (the regex in parser.js), so they are safe outside the code block too.
+- Keep source files free of invisible characters: write zero-width/soft-hyphen/mark characters as `\uXXXX`
+  escapes (parser.js `tidy()`), never as literals. When editing regex-heavy code, use the editor tools, not shell
+  heredocs or `node -e` strings: those silently ate backslashes several times (`\s*` became `s*`, `\n` became a
+  real newline) and the tests only caught some of it.
+
+## Content script rules (src/content.js runs on every page the person opens)
+- **Throttle, don't debounce.** A debounce restarts on every DOM change, so a page that changes constantly
+  (carousel, chat widget, video) is never scanned. `schedule()` keeps a pending run and enforces a minimum gap
+  between scans, `gapFor(age)`: 0.4 s for the first 3 s, 1.5 s to 15 s, 4 s to 90 s, then 10 s. This cut CPU on a
+  heavy product page with no fabric list from +2.2 s to +0.09 s per 20 s.
+- **Only relevant changes count.** `matters()` looks at what was added (text/elements containing `%`, fibre or
+  "material/composition" words, an add-to-bag button, `<script>`/`<meta>` for JSON-LD and og:type) and ignores the
+  rest. Adding a fibre word to a new fabric layout? Check `RELEVANT` in content.js still covers it.
+- **Observe `document.documentElement`, not `<body>`.** Turbo/htmx/Barba replace <body>; an observer on the old one
+  would silently stop working. If the page removes our badge (`polygone-host`), the removal counts as relevant
+  and the badge comes back.
+- **A new URL resets everything** (`resetForNewPage`): the old badge is removed at once, so a client-side
+  navigation never leaves the previous garment's fabric on screen while the new page loads.
+- **Contain failures.** `run()` wraps `scan()` in try/catch; documents without a <body> (SVG/XML) are skipped.
+- **Stop when done.** A confident result (`isFinal`) is not re-scanned until the URL or a setting changes.
+- Badge: Escape closes the details panel (only when it is open, so the page still gets its own Escape) and returns
+  focus to the first box; the badge is hidden when printing (`@media print`).
+
+## Packaging and the Chrome Web Store
+- The version lives in `manifest.json` and `package.json`; they must match (`npm run package` refuses otherwise).
+  Currently 1.0.0. Bump both for every store upload (the store rejects a version it already has).
+- `npm run package` -> `dist/polygone-<version>.zip` (dist/ is gitignored). Needs Node 22.22+/24.15+ (the same as
+  jsdom; the zip writer uses `zlib.crc32`). The file list comes from the manifest (content scripts, popup and what
+  it loads, icons) plus LICENSE, so tests, docs and node_modules can never ship. It checks name <= 75 and
+  description <= 132 characters, 16/48/128 icons of the right size, and a valid version, then writes a
+  reproducible zip (fixed order and timestamps) and reads it back to verify every checksum.
+  Rebuild it after ANY code change; a zip built earlier does not contain later fixes.
+- Permissions and their store justifications: `storage` (the on/off switch and the list of sites turned off, kept
+  in chrome.storage.sync), `activeTab` (the popup reads the current tab's site name for "On for <site>"), and a
+  content script on `<all_urls>` (a garment can be on any retailer's site; the script only reads the page text
+  in the tab, makes no network requests, and does nothing on pages that are not product pages).
+- Still to do before the store listing goes live: a privacy statement URL (say: nothing collected, nothing sent,
+  settings in chrome.storage.sync only, optional public GitHub issue that the person submits themselves),
+  1280x800 screenshots, listing text, and make the GitHub repo PUBLIC (the report link 404s for anyone who is
+  not a collaborator while it is private). Tag the release (`v1.0.0`) after the final commit.
 
 ## Known gaps / next steps
 - Reports become PUBLIC GitHub issues once the repo is public (the report view says so). `REPO` in report.js must
   match the public repo's name.
+- Limits found in the 1.0.0 bug hunt, not fixed on purpose: fabric text that exists only inside a shadow DOM is
+  invisible to the extension (textContent does not cross shadow roots); fibre names are English plus a few others
+  (poliéster, coton, algodón, Baumwolle, 聚酯), so other languages come out as "Fiber not recognised" (never as
+  "No plastic", and counted as plastic when the name looks like one: "Polyamid", "Elasthanne") and a page where
+  every fibre is unknown ("70% Cotone, 30% Poliestere") gives "Material not found"; a wrapper element flagged with an excluded word (e.g. `product--has-reviews`) hides everything inside it (none
+  seen in the 52 saved pages or ~290 scanned ones); pages where the composition differs per colour show one.
 - Icons: the user's own design is in `icons/` (16/48/128 px PNGs, transparent), registered in the manifest
   (`icons` and `action.default_icon`). Not done: a 32 px size for sharper toolbar icons on high-DPI screens
   (Chrome scales the 48 down), and an icon that changes color per page (needs a background service worker

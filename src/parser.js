@@ -31,7 +31,7 @@
     "polyvinyl chloride", "polyvinylchloride", "pvc", "vinyl", "chlorofib(?:er|re)",
     // natural and regenerated (never plastic)
     "cotton", "coton", "algod[oó]n", "baumwolle",
-    "viscose", "rayon", "modal", "micro[- ]?modal", "lyocell", "tencel(?:\\s+(?:lyocell|modal|luxe))?", "cupro", "acetate", "triacetate", "livaeco",
+    "viscose", "rayon", "modal", "micro[- ]?modal", "lyocell", "tencel(?:\\s+(?:lyocell|modal|luxe))?", "cupro", "acetate", "triacetate", "liva[- ]?eco", "eco[- ]?vero", "refibra",
     // "<animal> wool" is one fiber. If only "merino" were matched, the leftover word "wool" would claim the
     // next percentage ("50% merino wool 50% polyester" lost its polyester), so the full name must match.
     "wool", "lambs?-?wool", "merino(?:\\s+wool)?", "shetland(?:\\s+wool)?", "cashmere(?:\\s+wool)?", "alpaca(?:\\s+wool)?",
@@ -40,6 +40,8 @@
     "leather", "suede", "fur", "(?:duck\\s+|goose\\s+)?down", "feathers?",
     // "other fibres", metallic threads: not named, not counted as plastic
     "other\\s+(?:fib(?:er|re)s?|materials?)", "metallic(?:\\s+fib(?:er|re)s?)?", "metallised(?:\\s+fib(?:er|re)s?)?", "metal", "lurex", "carbon(?:\\s+fib(?:er|re)s?)?",
+    // accessories list what they are made of too ("90% polyvinyl chloride, 10% iron" on a hair clip)
+    "stainless\\s+steel", "iron", "steel", "zinc(?:\\s+alloy)?", "brass", "alumini?um", "copper", "nickel", "alloy", "glass", "wood",
     // Brands sometimes say what the polyester is made from instead of naming it:
     // "89% recycled water bottles (RPET)". "recycled" is required so a bare
     // "bottles" never counts.
@@ -48,7 +50,7 @@
 
   // Words that qualify a fiber without changing what it is: "98% BCI Cotton", "70% baby alpaca".
   const MODIFIERS =
-    "recycled|upcycled|organic|regenerated|virgin|new|baby|pima|supima|egyptian|bci|combed|ring-?spun|lenzing|ecovero|refibra|extra\\s+fine|responsibly[- ]sourced|responsible|reclaimed|tree[- ]derived|certified|sustainable";
+    "recycled|upcycled|organic|regenerated|virgin|new|baby|pima|supima|egyptian|bci|combed|ring-?spun|lenzing|eco[- ]?vero|liva[- ]?eco|refibra|rws|grs|gots|ocs|fsc|fairtrade|extra\\s+fine|responsibly[- ]sourced|responsible|reclaimed|tree[- ]derived|certified|sustainable";
 
   const NUM = "\\d{1,3}(?:[.,]\\d+)?";
   const FIBER =
@@ -99,7 +101,9 @@
     [/^(elastane|elastan|spandex|lycra)$/, "elastane"],
     [/^(dyneema|polyethylene)$/, "polyethylene"],
     [/^(polylactic acid|polylactide)$/, "polylactic acid"],
-    [/^(viscose|rayon|livaeco)$/, "viscose"],
+    [/^(viscose|rayon|liva[- ]?eco|eco[- ]?vero)$/, "viscose"],
+    [/^refibra$/, "lyocell"],
+    [/^(stainless steel|iron|steel|zinc|zinc alloy|brass|alumini?um|copper|nickel|alloy)$/, "metal"],
     [/^(modal|micro[- ]?modal)$/, "modal"],
     [/^(cotton|coton|algod[oó]n|baumwolle)$/, "cotton"],
     [/^(wool|lambs?-?wool|merino(?: wool)?|shetland(?: wool)?)$/, "wool"],
@@ -125,7 +129,10 @@
   //  - registered marks stuck to names: "90% SUPIMA® Cotton", "TENCEL™ Lyocell"
   //  - words run together where a tag or line break was lost: "100% PolyesterMachine wash" (Boohoo)
   // Marks become spaces; a lowercase letter followed by a capital gets a space between them.
-  const tidy = (s) => s.replace(/[®™©℠]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2");
+  //  - invisible characters (zero-width space/joiner, word joiner, soft hyphen) are deleted: a zero-width space
+  //    after the "%" made the whole composition unreadable, and one inside a name splits it in two.
+  const tidy = (s) =>
+    s.replace(/[\u200B-\u200D\u2060\u00AD]/g, "").replace(/[\u00AE\u2122\u00A9\u2120]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2");
 
   const round1 = (n) => Math.round(n * 10) / 10;
 
@@ -347,7 +354,12 @@
         };
       })
       .filter((part) => part.isMain || part.plasticPct > 0 || part.complete)
-      .slice(0, MAX_PARTS);
+      .reduce((kept, part, i, all) => {
+        // Keep the first MAX_PARTS, but never drop the main fabric: if it comes later, it takes the last slot.
+        if (i < MAX_PARTS) kept.push(part);
+        else if (part.isMain && !kept.some((p) => p.isMain)) kept[MAX_PARTS - 1] = part;
+        return kept;
+      }, []);
   }
 
   /**
@@ -358,7 +370,7 @@
   function findNamedFibers(text) {
     const seen = new Set();
     for (const m of text.matchAll(new RegExp(FIBER + "(?![a-z])", "gi"))) {
-      if (/(^|s)poly$/i.test(m[0])) continue; // bare "poly" is too ambiguous without a number
+      if (/(^|\s)poly$/i.test(m[0])) continue; // bare "poly" is too ambiguous without a number
       seen.add(normalizeFiber(m[0]).name);
     }
     return [...seen];

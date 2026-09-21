@@ -104,6 +104,9 @@
     .muted { color: var(--muted); }
     .link { all: unset; cursor: pointer; text-decoration: underline; }
     .link:focus-visible, .pill:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+    /* A fixed overlay would print on top of the page. */
+    @media print { .wrap { display: none; } }
   `;
 
   const SOURCE_LABEL = {
@@ -341,7 +344,17 @@
     };
     pills.forEach((p) => p.addEventListener("click", toggle));
 
-    root.append(style, el("div", { class: "wrap", role: "status" }, panel, el("div", { class: "pills" }, ...pills)));
+    const wrap = el("div", { class: "wrap", role: "status" }, panel, el("div", { class: "pills" }, ...pills));
+    // Escape closes the details and hands focus back to the first box. Only when it is open: the page's own
+    // Escape handling (closing its dialogs) is left alone the rest of the time.
+    wrap.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || panel.hidden) return;
+      toggle();
+      pills[0].focus();
+      e.stopPropagation();
+    });
+
+    root.append(style, wrap);
     document.documentElement.append(host); // not <body>: avoids body transforms breaking position:fixed
   }
 

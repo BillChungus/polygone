@@ -9,3 +9,6 @@ test/corpus/pages/*
 !test/corpus/pages/zara-satin-dress.html
 !test/corpus/pages/oldnavy-dress.html
 !test/corpus/pages/nordstrom-maeve.html
+
+# Built by `npm run package`
+dist/

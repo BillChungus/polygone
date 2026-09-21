@@ -1,6 +1,6 @@
 {
   "name": "polygone",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Chrome extension that shows the plastic content of clothing on product pages",
   "license": "MIT",
@@ -16,7 +16,9 @@
   "scripts": {
     "test": "node test/run.js",
     "fuzz": "node test/fuzz.js 12345 20000",
-    "scan": "node test/corpus/scan.js"
+    "fuzz:dom": "node test/dom-fuzz.js 1 400",
+    "scan": "node test/corpus/scan.js",
+    "package": "node scripts/package.js"
   },
   "devDependencies": {
     "jsdom": "^30.1.0"
