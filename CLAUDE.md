@@ -1,12 +1,19 @@
-# Poly Check
+# Polygone
 
 Chrome extension (Manifest V3) that reads a product page's fabric composition and shows a
 floating badge with how much plastic-based fiber the garment contains. Targets all retailers,
 product detail pages only. No build step: plain JS content scripts.
 
+## Naming
+The extension was called "Poly Check" until 2026-09-21; it is now **Polygone**. Where the name lives: manifest
+`name` and toolbar tooltip, popup title, the `window.Polygone` namespace shared by the content scripts, the badge's
+DOM id `polygone-host`, `REPO` in src/report.js (`BillChungus/polygone`), package.json/lock, and the report text
+("**Polygone showed:**", "_Polygone <version>_"). Chrome's extension id does not depend on the name. The local folder
+may still be called `poly-check`; that is only a directory name.
+
 ## Layout
 - `manifest.json` - one content script on `<all_urls>` loading six files IN THIS ORDER
-  (they share the `window.PolyCheck` namespace, no modules/bundler):
+  (they share the `window.Polygone` namespace, no modules/bundler):
 - `src/parser.js` - pure text -> composition logic, no DOM. Fiber regex, part splitting
   ("Shell:", "Lining:"), plastic set, `summarizeComposition`, `findHints`.
 - `src/detect.js` - product-page check, 4-tier extraction (JSON-LD, labeled section like
@@ -142,5 +149,5 @@ product detail pages only. No build step: plain JS content scripts.
   never hidden and never green: status "unrecognised" ("Fiber not recognised / Can't tell if plastic: xyz 2%"),
   listed in the panel and in reports. If the name looks like a plastic (`PLASTIC_STEMS`: poly, acryl,
   nylon, elast, ...-ester, olefin, vinyl, ...) it is counted as plastic. To teach it a new fiber, add its
-  pattern to `FIBER_NAMES`, a canonical name to `CANON`, and to `PLASTIC` if it is one. Reports ("Poly Check
+  pattern to `FIBER_NAMES`, a canonical name to `CANON`, and to `PLASTIC` if it is one. Reports ("Polygone
   showed") reveal which unknown names real shoppers hit.

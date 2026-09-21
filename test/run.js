@@ -27,10 +27,10 @@ const page = (body, head = '<meta property="og:type" content="product">') =>
 // Renders the badge for a page and returns its color state + text.
 function badge(html) {
   const w = load(html);
-  const NS = w.PolyCheck;
+  const NS = w.Polygone;
   const result = NS.analyzePage();
   NS.badge.render(result, {});
-  const pills = [...w.document.getElementById("polycheck-host").shadowRoot.querySelectorAll(".pill")];
+  const pills = [...w.document.getElementById("polygone-host").shadowRoot.querySelectorAll(".pill")];
   const text = (p, sel) => p.querySelector(sel)?.textContent;
   return {
     status: result.status,
@@ -43,7 +43,7 @@ function badge(html) {
 
 // ---- 1. Parser: composition string -> total plastic % (null = not a composition) ----
 console.log("\nParser");
-const NS = load("<html><body></body></html>").PolyCheck;
+const NS = load("<html><body></body></html>").Polygone;
 const plasticOf = (text) => {
   const comp = NS.parseComposition(text);
   return comp ? NS.summarizeComposition(comp).plasticPct : null;
@@ -202,7 +202,7 @@ check("at most 5 boxes", many.states.length, 5);
 
 // ---- Report a wrong reading: pre-filled GitHub issue, nothing sent by the extension ----
 console.log("\nReport");
-const R = load("<html><body></body></html>").PolyCheck.report;
+const R = load("<html><body></body></html>").Polygone.report;
 check("url: query and fragment are dropped", R.safeUrl("https://shop.example/p/1?utm=abc&email=a@b.c#reviews"), "https://shop.example/p/1");
 check("url: credentials are dropped", R.safeUrl("https://user:pw@shop.example/p/1"), "https://shop.example/p/1");
 check("url: non-web pages are not shared", R.safeUrl("chrome://extensions/"), "");
@@ -242,9 +242,9 @@ check("issue link carries the whole report", decodeURIComponent(R.issueUrl(rep).
   w.XMLHttpRequest = function () { sent++; };
   w.navigator.sendBeacon = () => sent++;
   for (const f of ["parser.js", "detect.js", "report.js", "badge.js"]) w.eval(fs.readFileSync(path.join(SRC, f), "utf8"));
-  w.PolyCheck.badge.render(w.PolyCheck.analyzePage(), {});
+  w.Polygone.badge.render(w.Polygone.analyzePage(), {});
 
-  const sr = w.document.getElementById("polycheck-host").shadowRoot;
+  const sr = w.document.getElementById("polygone-host").shadowRoot;
   const button = (label) => [...sr.querySelectorAll("button")].find((b) => b.textContent.trim() === label);
   const preview = sr.querySelector("pre");
   const view = preview.parentElement;
@@ -274,7 +274,7 @@ check("issue link carries the whole report", decodeURIComponent(R.issueUrl(rep).
 
 // ---- "How this was read" keeps the page's own lines, shown as bullets ----
 console.log("\nBullets");
-const linesOf = (body) => load(page(body)).PolyCheck.analyzePage().lines;
+const linesOf = (body) => load(page(body)).Polygone.analyzePage().lines;
 check(
   "list items become separate lines",
   linesOf("<h1>Joggers</h1><h3>Composition</h3><ul><li>Blue</li><li>Shell: 65% polyester, 35% cotton</li><li>Machine wash</li></ul>").join("|"),
@@ -313,8 +313,8 @@ check(
 
 function bulletsIn(html) {
   const w = load(html);
-  w.PolyCheck.badge.render(w.PolyCheck.analyzePage(), {});
-  const sr = w.document.getElementById("polycheck-host").shadowRoot;
+  w.Polygone.badge.render(w.Polygone.analyzePage(), {});
+  const sr = w.document.getElementById("polygone-host").shadowRoot;
   return {
     items: [...sr.querySelectorAll("ul.read li")].map((li) => li.textContent),
     hits: [...sr.querySelectorAll("ul.read li.hit")].map((li) => li.textContent),
@@ -348,11 +348,11 @@ check("a part with an unknown fiber gets its own box", boxes("Shell: 98% cotton,
 check("a page with only unknown words is not a composition", plasticOf("50% Zorbex 50% Blorf"), null);
 {
   const w = load(comp("98% cotton, 2% Zorbex"));
-  w.PolyCheck.badge.render(w.PolyCheck.analyzePage(), {});
-  const panel = w.document.getElementById("polycheck-host").shadowRoot.querySelector(".panel");
+  w.Polygone.badge.render(w.Polygone.analyzePage(), {});
+  const panel = w.document.getElementById("polygone-host").shadowRoot.querySelector(".panel");
   check("panel explains the unknown fiber", panel.textContent.includes('We don\'t have "zorbex" in our fiber list'), true);
   check("panel lists it as not recognised", panel.textContent.includes("2% zorbex (not recognised)"), true);
-  const r = w.PolyCheck.analyzePage();
+  const r = w.Polygone.analyzePage();
   check("result lists the unrecognised fibers", r.unrecognised.map((f) => f.name).join(","), "zorbex");
   check("status is unrecognised", r.status, "unrecognised");
 }
@@ -455,7 +455,7 @@ for (const [name, [status, pct]] of Object.entries(corpusCases)) {
   const url = html.match(/^<!-- (\S+) -->/)[1];
   const dom = new JSDOM(html, { runScripts: "outside-only", url });
   for (const f of ["parser.js", "detect.js"]) dom.window.eval(fs.readFileSync(path.join(SRC, f), "utf8"));
-  const pc = dom.window.PolyCheck;
+  const pc = dom.window.Polygone;
   const r = pc.analyzePage();
   check(`${name}: product page`, pc.isProductPage(), true);
   check(`${name}: status`, r.status, status);
@@ -472,7 +472,7 @@ if (skipped.length) {
 console.log("\nSettings");
 const S = load("<html><body></body></html>");
 S.eval(fs.readFileSync(path.join(SRC, "settings.js"), "utf8"));
-const st = S.PolyCheck.settings;
+const st = S.Polygone.settings;
 const on = (settings, host) => st.isOn({ ...st.DEFAULTS, ...settings }, host);
 check("on by default", on({}, "shop.example"), true);
 check("global off", on({ enabled: false }, "shop.example"), false);
@@ -533,7 +533,7 @@ async function runContent(store) {
     w.eval(fs.readFileSync(path.join(SRC, f), "utf8"));
   }
   await tick(60);
-  return { has: () => !!w.document.getElementById("polycheck-host"), chrome: w.chrome };
+  return { has: () => !!w.document.getElementById("polygone-host"), chrome: w.chrome };
 }
 
 (async () => {

@@ -17,7 +17,7 @@ for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".html"))) {
   const dom = new JSDOM(html, { runScripts: "outside-only", url });
   const w = dom.window;
   for (const s of ["parser.js", "detect.js"]) w.eval(fs.readFileSync(path.join(SRC, s), "utf8"));
-  const NS = w.PolyCheck;
+  const NS = w.Polygone;
   const r = NS.analyzePage();
   console.log(`\n=== ${name}  product=${NS.isProductPage()}  status=${r.status}  plastic=${r.plasticPct ?? "-"}  tier=${r.tier ?? "-"}  conf=${r.confidence ?? "-"}`);
   if (r.snippet) console.log(`  used: ${r.snippet.slice(0, 160)}`);

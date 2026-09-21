@@ -1,4 +1,4 @@
-# Poly Check
+# Polygone
 
 Chrome extension (Manifest V3) that reads a product page's fabric composition and shows a small
 badge with how much plastic-based fiber the garment contains: polyester, nylon, acrylic,

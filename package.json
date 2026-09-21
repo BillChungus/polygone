@@ -1,5 +1,5 @@
 {
-  "name": "poly-check",
+  "name": "polygone",
   "version": "0.1.0",
   "private": true,
   "description": "Chrome extension that shows the plastic content of clothing on product pages",
@@ -7,11 +7,11 @@
   "author": "BillChungus",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BillChungus/poly-check.git"
+    "url": "git+https://github.com/BillChungus/polygone.git"
   },
-  "homepage": "https://github.com/BillChungus/poly-check#readme",
+  "homepage": "https://github.com/BillChungus/polygone#readme",
   "bugs": {
-    "url": "https://github.com/BillChungus/poly-check/issues"
+    "url": "https://github.com/BillChungus/polygone/issues"
   },
   "scripts": {
     "test": "node test/run.js",

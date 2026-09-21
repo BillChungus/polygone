@@ -102,7 +102,7 @@ function analyse(html, url) {
   const w = dom.window;
   try {
     for (const c of CODE) w.eval(c);
-    const NS = w.PolyCheck;
+    const NS = w.Polygone;
     const product = NS.isProductPage();
     const r = NS.analyzePage();
     const body = w.document.body ? w.document.body.textContent.replace(/\s+/g, " ") : "";

@@ -15,11 +15,11 @@
  *            percentages, so plastic is certain and the amount is unknown.
  * Garments with several parts (shell, lining, ...) get one box per part, each colored on its own.
  *
- * Exposes: PolyCheck.badge = { render(result, opts), remove(), HOST_ID }
+ * Exposes: Polygone.badge = { render(result, opts), remove(), HOST_ID }
  */
 (function () {
-  const NS = (window.PolyCheck = window.PolyCheck || {});
-  const HOST_ID = "polycheck-host";
+  const NS = (window.Polygone = window.Polygone || {});
+  const HOST_ID = "polygone-host";
 
   const CSS = `
     :host { all: initial; }

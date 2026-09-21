@@ -3,13 +3,13 @@
  * Pure text -> composition logic. No DOM access, so it can be unit-tested in
  * Node against a corpus of real material strings.
  *
- * Exposes: PolyCheck.parseComposition(text), PolyCheck.hasFiberPattern(text),
- *          PolyCheck.summarizeComposition(comp), PolyCheck.findHints(text),
- *          PolyCheck.findNamedFibers(text),
- *          PolyCheck.isPlastic(name)
+ * Exposes: Polygone.parseComposition(text), Polygone.hasFiberPattern(text),
+ *          Polygone.summarizeComposition(comp), Polygone.findHints(text),
+ *          Polygone.findNamedFibers(text),
+ *          Polygone.isPlastic(name)
  */
 (function () {
-  const NS = (window.PolyCheck = window.PolyCheck || {});
+  const NS = (window.Polygone = window.Polygone || {});
 
   // Extend freely. A fiber missing from this list makes its segment sum to
   // less than 100, which lowers confidence (see parseComposition).

@@ -7,10 +7,10 @@
  *   4. scan    - any short block containing fiber percentages
  * Every candidate is parsed and scored; the best one wins.
  *
- * Exposes: PolyCheck.isProductPage(), PolyCheck.analyzePage()
+ * Exposes: Polygone.isProductPage(), Polygone.analyzePage()
  */
 (function () {
-  const NS = (window.PolyCheck = window.PolyCheck || {});
+  const NS = (window.Polygone = window.Polygone || {});
   const { parseComposition, hasFiberPattern } = NS;
 
   const MIN_SCORE = 3;

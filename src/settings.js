@@ -1,15 +1,15 @@
 /**
  * settings.js
- * Setting names, defaults and the "is Poly Check on here?" rule. Shared by the content script
+ * Setting names, defaults and the "is Polygone on here?" rule. Shared by the content script
  * (content.js) and the toolbar popup (popup/popup.js), so both agree on what counts as turned off.
  * Pure functions, no chrome.* calls.
  *
  * Stored in chrome.storage.sync: { enabled: boolean, disabledHosts: string[] }
  *
- * Exposes: PolyCheck.settings = { DEFAULTS, normalizeHost, hostDisabled, isOn }
+ * Exposes: Polygone.settings = { DEFAULTS, normalizeHost, hostDisabled, isOn }
  */
 (function () {
-  const NS = (window.PolyCheck = window.PolyCheck || {});
+  const NS = (window.Polygone = window.Polygone || {});
 
   const DEFAULTS = { enabled: true, disabledHosts: [] };
 

@@ -1,13 +1,13 @@
 /**
  * content.js
  * Entry point. Loaded last, after parser.js, detect.js and badge.js
- * (order is set in manifest.json; they share the PolyCheck namespace).
+ * (order is set in manifest.json; they share the Polygone namespace).
  *
  * Flow: load settings -> run() now -> re-run (debounced) when the DOM changes
  * or the URL changes -> stop re-scanning once a confident result is shown.
  */
 (async function () {
-  const NS = window.PolyCheck;
+  const NS = window.Polygone;
 
   const DEFAULTS = NS.settings.DEFAULTS;
   const SETTLE_MS = 3000; // wait this long before admitting "material not found"
@@ -17,7 +17,7 @@
   try {
     settings = { ...DEFAULTS, ...(await chrome.storage.sync.get(DEFAULTS)) };
   } catch (e) {
-    console.debug("[Poly Check] storage unavailable, using defaults", e);
+    console.debug("[Polygone] storage unavailable, using defaults", e);
   }
 
   let pageStart = Date.now();

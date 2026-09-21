@@ -7,14 +7,14 @@
  * All page-derived text (host names) goes in via textContent, never innerHTML.
  */
 (async function () {
-  const S = window.PolyCheck.settings;
+  const S = window.Polygone.settings;
   const $ = (id) => document.getElementById(id);
 
   let settings = { ...S.DEFAULTS, disabledHosts: [] };
   try {
     settings = { ...settings, ...(await chrome.storage.sync.get(S.DEFAULTS)) };
   } catch (e) {
-    console.debug("[Poly Check] storage unavailable, using defaults", e);
+    console.debug("[Polygone] storage unavailable, using defaults", e);
   }
 
   // The active tab's host. Needs the activeTab permission, which the toolbar click grants.
@@ -43,11 +43,11 @@
       $("site").disabled = !settings.enabled;
       row.classList.toggle("disabled", !settings.enabled);
       note.hidden = settings.enabled;
-      note.textContent = "Poly Check is off everywhere.";
+      note.textContent = "Polygone is off everywhere.";
     } else {
       row.hidden = true;
       note.hidden = false;
-      note.textContent = "Open a shop's product page to turn Poly Check on or off for that site.";
+      note.textContent = "Open a shop's product page to turn Polygone on or off for that site.";
     }
 
     // Sites turned off

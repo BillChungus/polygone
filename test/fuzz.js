@@ -8,7 +8,7 @@ const { JSDOM } = require("jsdom");
 const SRC = path.join(__dirname, "..", "src");
 const w = new JSDOM("<html><body></body></html>", { runScripts: "outside-only" }).window;
 for (const f of ["parser.js"]) w.eval(fs.readFileSync(path.join(SRC, f), "utf8"));
-const NS = w.PolyCheck;
+const NS = w.Polygone;
 
 // mulberry32
 let seed = Number(process.argv[2] || 12345);

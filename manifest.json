@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Poly Check",
+  "name": "Polygone",
   "version": "0.1.0",
   "description": "Shows how much plastic (polyester, nylon, acrylic, spandex and more) is in a garment's fabric, right on the product page.",
   "minimum_chrome_version": "102",
@@ -14,7 +14,7 @@
     "activeTab"
   ],
   "action": {
-    "default_title": "Poly Check",
+    "default_title": "Polygone",
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

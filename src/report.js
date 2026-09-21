@@ -8,14 +8,14 @@
  * Privacy: only origin + path of the page URL is included. Query strings and #fragments are dropped
  * because they can carry tracking ids or personal data.
  *
- * Exposes: PolyCheck.report = { REPO, safeUrl, build, issueUrl, version }
+ * Exposes: Polygone.report = { REPO, safeUrl, build, issueUrl, version }
  */
 (function () {
-  const NS = (window.PolyCheck = window.PolyCheck || {});
+  const NS = (window.Polygone = window.Polygone || {});
 
   // Reports open a new issue here. The repo is public, so the issue (page URL without query string, what the
   // badge showed, the text it read, the person's comment) is public too; the report view says so.
-  const REPO = "BillChungus/poly-check";
+  const REPO = "BillChungus/polygone";
   const MAX_SNIPPET = 240;
   const MAX_COMMENT = 500;
 
@@ -55,11 +55,11 @@
 
     const body = [
       `**Page:** ${url || "(not shared)"}`,
-      `**Poly Check showed:** ${lines.map((l) => oneLine(l, 200)).join("; ") || "nothing"}`,
+      `**Polygone showed:** ${lines.map((l) => oneLine(l, 200)).join("; ") || "nothing"}`,
       `**Status:** ${result.status}${result.tier ? ` (read from ${result.tier})` : ""}`,
       quoted(result),
       `**What looks wrong:** ${oneLine(comment, MAX_COMMENT) || "(add details here)"}`,
-      `_Poly Check ${ver}_`,
+      `_Polygone ${ver}_`,
     ].join("\n\n");
 
     return { title: `Wrong reading: ${host || "unknown site"}`, body };
