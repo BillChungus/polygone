@@ -22,7 +22,8 @@ may still be called `poly-check`; that is only a directory name.
   skipped by `isExcluded(el)`: it matches WHOLE WORDS in class/id (camelCase split), never substrings, so a class
   like "preview" or "has-reviews" on <body> no longer blanks the page, and it stops at <body>/<html>. Keep it
   that way: a substring test once made a page with `class="product-preview"` invisible to the extension.
-- `LICENSE` - MIT, (c) 2026 BillChungus.
+- `LICENSE` - MIT, (c) 2026 BillChungus. `PRIVACY.md` - the privacy policy. `store/` and `docs/demo/` - Chrome Web
+  Store material (listing text, screenshots) and the made-up demo shop; see "Packaging and the Chrome Web Store".
 - `src/report.js` - builds the "Report wrong reading" text and the pre-filled GitHub issue link. Pure.
   `REPO` at the top is where reports go: change it if the repo is renamed or moved. The text the extension read
   from the page is scraped, so it goes inside a fenced code block (a page can't inject markdown, links or
@@ -148,14 +149,35 @@ may still be called `poly-check`; that is only a directory name.
   description <= 132 characters, 16/48/128 icons of the right size, and a valid version, then writes a
   reproducible zip (fixed order and timestamps) and reads it back to verify every checksum.
   Rebuild it after ANY code change; a zip built earlier does not contain later fixes.
-- Permissions and their store justifications: `storage` (the on/off switch and the list of sites turned off, kept
-  in chrome.storage.sync), `activeTab` (the popup reads the current tab's site name for "On for <site>"), and a
-  content script on `<all_urls>` (a garment can be on any retailer's site; the script only reads the page text
-  in the tab, makes no network requests, and does nothing on pages that are not product pages).
-- Still to do before the store listing goes live: a privacy statement URL (say: nothing collected, nothing sent,
-  settings in chrome.storage.sync only, optional public GitHub issue that the person submits themselves),
-  1280x800 screenshots, listing text, and make the GitHub repo PUBLIC (the report link 404s for anyone who is
-  not a collaborator while it is private). Tag the release (`v1.0.0`) after the final commit.
+- Permissions: `storage` (the on/off switch and the list of sites turned off, kept in chrome.storage.sync),
+  `activeTab` (the popup reads the current tab's site name for "On for <site>"), and a content script on
+  `<all_urls>` (a garment can be on any retailer's site; the script only reads the page text in the tab, makes no
+  network requests, and only checks whether a page is a product page otherwise). The wording for each dashboard box
+  is in `store/listing.md`.
+- **Privacy is a promise in three places that must agree:** `PRIVACY.md` (the policy URL the store links to),
+  the dashboard's privacy answers (in `store/listing.md`: "Website content" ticked, nothing sold or transferred), and
+  what the code really does. The store removes items whose privacy fields contradict their behavior. So if the
+  extension ever reads something new, stores something new, sends anything, or asks for another permission,
+  update `PRIVACY.md` and `store/listing.md` in the same change. Today: reads only product-page text, on the device;
+  stores only `enabled` and `disabledHosts`; no network requests (the report link is opened by the person).
+- `PRIVACY.md` - the privacy policy. Store URL: https://github.com/BillChungus/polygone/blob/main/PRIVACY.md
+  (works once the repo is public).
+- `store/listing.md` - everything to paste into the dashboard (description, single purpose, permission
+  justifications, data-usage answers, test instructions) and a submit checklist. Description rules: no shop/brand
+  lists, no word more than 5 times.
+- `store/screenshots/` - five 1280x800 screenshots and the 440x280 small promo tile (required by the store), made
+  by `store/make-screenshots.js` in real Chrome with the extension loaded (`npm install --no-save puppeteer-core`,
+  then `node store/make-screenshots.js`; needs Chrome and takes about a minute). Screenshots must be 24-bit PNG
+  without alpha; the script checks size and alpha. Re-run it whenever the badge, panel or popup changes visibly.
+  The promo tile is a placeholder made from the icon.
+- `docs/demo/` - a made-up shop ("Linden & Co.", five product pages, one per badge state, plain static HTML). It is
+  the backdrop for the screenshots and a stable page for store reviewers: with GitHub Pages on (Settings, Pages,
+  branch main, folder /docs) it is at https://billchungus.github.io/polygone/demo/. Keep it free of real brands and
+  photos. To try it locally: `python -m http.server -d docs/demo`, then open a page (file:// pages need "Allow access
+  to file URLs" for the extension).
+- Still to do before the listing goes live: make the GitHub repo PUBLIC (the report link and the privacy URL 404 for
+  anyone who is not a collaborator while it is private), turn on GitHub Pages, fill in the dashboard from
+  `store/listing.md` (contact email, "trader" declaration), tag `v1.0.0` after the final commit.
 
 ## Known gaps / next steps
 - Reports become PUBLIC GitHub issues once the repo is public (the report view says so). `REPO` in report.js must

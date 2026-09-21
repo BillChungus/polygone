@@ -1,0 +1,74 @@
+/* Shared styles for the made-up shop used to try Polygone and to take its store screenshots. */
+:root {
+  --ink: #1f2421; --muted: #5d6560; --paper: #fbf8f3; --line: #e4ddd2; --sand: #efe7da; --white: #ffffff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 15px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
+a { color: inherit; text-decoration: none; }
+
+.demo-note { padding: 6px 12px; text-align: center; font-size: 12.5px; color: #cfeaf5; background: #0c2a38; }
+
+.top {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px; padding: 0 32px; background: var(--white); border-bottom: 1px solid var(--line);
+}
+.brand { font: 600 20px/1 Georgia, "Times New Roman", serif; letter-spacing: 0.2em; text-transform: uppercase; }
+.nav { display: flex; gap: 26px; font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.crumbs { max-width: 1120px; margin: 0 auto; padding: 14px 32px 0; font-size: 12px; color: var(--muted); }
+
+/* Details on the left, pictures on the right: Polygone's badge floats bottom-right, over the picture. */
+.wrap {
+  display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 56px;
+  max-width: 1120px; margin: 0 auto; padding: 16px 32px 90px;
+}
+.info { order: 1; }
+.gallery { order: 2; display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 14px; align-items: start; }
+.thumbs { display: grid; gap: 10px; }
+.thumbs div { aspect-ratio: 4 / 5; border: 1px solid var(--line); background: var(--sand); border-radius: 4px; }
+.thumbs div.on { border-color: var(--ink); }
+.hero {
+  display: grid; place-items: center; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 6px;
+  background: linear-gradient(180deg, #f2ebe0, #e5dac8);
+}
+.hero svg { width: 76%; height: auto; filter: drop-shadow(0 16px 16px rgba(70, 52, 24, 0.2)); }
+
+.info h1 { margin: 4px 0 8px; font: 500 30px/1.15 Georgia, "Times New Roman", serif; }
+.kicker { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.price { margin: 0 0 6px; font-size: 20px; }
+.opt { margin: 18px 0 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.swatches { display: flex; gap: 10px; }
+.swatches i { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--white); box-shadow: 0 0 0 1px var(--line); }
+.swatches i.on { box-shadow: 0 0 0 2px var(--ink); }
+.sizes { display: flex; flex-wrap: wrap; gap: 8px; }
+.sizes span { min-width: 46px; padding: 9px 0; text-align: center; font-size: 14px; background: var(--white); border: 1px solid var(--line); border-radius: 4px; }
+.sizes span.on { border-color: var(--ink); }
+.add {
+  width: 100%; margin-top: 22px; padding: 15px; border: 0; border-radius: 4px;
+  background: var(--ink); color: var(--white); font: 600 15px "Segoe UI", system-ui, sans-serif; letter-spacing: 0.04em;
+}
+.small { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+
+.acc { margin-top: 26px; border-top: 1px solid var(--line); }
+.acc section { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.acc h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+.acc p { margin: 0 0 6px; }
+.acc ul { margin: 0; padding-left: 18px; }
+.acc li { margin: 2px 0; }
+
+/* index page */
+.index { max-width: 640px; margin: 0 auto; padding: 40px 32px 80px; }
+.index h1 { font: 500 30px/1.2 Georgia, "Times New Roman", serif; }
+.index li { margin: 8px 0; }
+.index a { text-decoration: underline; }
+
+@media (max-width: 760px) {
+  .wrap { grid-template-columns: 1fr; gap: 24px; padding: 12px 16px 90px; }
+  .info { order: 2; }
+  .gallery { order: 1; }
+  .top { padding: 0 16px; }
+  .nav { display: none; }
+  .crumbs { padding: 12px 16px 0; }
+}

@@ -10,13 +10,17 @@ spandex/elastane, elastomultiester, polyurethane (PU), PVC, polypropylene and si
 - "Report wrong reading" in the details panel opens a pre-filled GitHub issue. You see the report first and
   press Submit yourself; the page URL is included without its query string or fragment. **GitHub issues are
   public**, so anyone can read what you submit.
-- Everything runs locally in the page. No network requests, no data leaves the browser.
+- Everything runs locally in the page. No network requests, no data leaves the browser. See the
+  [privacy policy](PRIVACY.md).
 
 ## Try it
 
 1. Open `chrome://extensions` and turn on Developer mode.
 2. Click "Load unpacked" and choose this folder.
 3. Visit a product page on a clothing retailer.
+
+No shop handy? `docs/demo` is a made-up shop with a page for each badge color. Serve it with
+`python -m http.server -d docs/demo` and open <http://localhost:8000/>.
 
 ## Develop
 

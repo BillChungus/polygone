@@ -500,6 +500,57 @@ if (skipped.length) {
   console.log(`SKIP  ${skipped.length} of ${Object.keys(corpusCases).length} saved pages not present (not in the public repo). Everything else still ran.`);
 }
 
+// ---- Demo shop (docs/demo): the pages behind the store screenshots and the reviewers' test instructions ----
+// If a parser change moves one of these readings, the screenshots and store/listing.md are out of date too.
+console.log("\nDemo shop");
+{
+  const DEMO = path.join(__dirname, "..", "docs", "demo");
+  const demoCases = {
+    "wrap-dress": { states: ["high"], titles: ["Plastic 100%"] },
+    "linen-shirt": { states: ["none"], titles: ["No plastic fibers"] },
+    "rib-tee": { states: ["low"], titles: ["Plastic 5%"] },
+    "field-jacket": { states: ["none", "high", "low"], titles: ["No plastic fibers", "Plastic 100%", "Plastic 5%"], parts: ["Shell", "Lining", "Pockets"] },
+    "boxy-top": { states: ["unknown"], titles: ["Material not found"] },
+  };
+  for (const [name, want] of Object.entries(demoCases)) {
+    const html = fs.readFileSync(path.join(DEMO, `${name}.html`), "utf8");
+    const got = badge(html);
+    check(`demo ${name}: colors`, got.states.join(","), want.states.join(","));
+    check(`demo ${name}: titles`, got.titles.join(","), want.titles.join(","));
+    if (want.parts) check(`demo ${name}: parts`, got.parts.join(","), want.parts.join(","));
+  }
+  const index = fs.readFileSync(path.join(DEMO, "index.html"), "utf8");
+  check("demo index: not a product page (no badge)", load(index).Polygone.isProductPage(), false);
+  check("demo index: links to every product page", Object.keys(demoCases).every((n) => index.includes(`href="${n}.html"`)), true);
+  const all = fs.readdirSync(DEMO).filter((f) => f.endsWith(".html")).map((f) => fs.readFileSync(path.join(DEMO, f), "utf8")).join("\n");
+  check("demo pages: no scripts other than product data, and nothing loaded from other sites", /<script(?![^>]*ld\+json)/i.test(all) || /(?:src|href)=["'](?:https?:)?\/\//i.test(all), false);
+}
+
+// ---- Store listing and privacy policy: must keep agreeing with the manifest ----
+// The store removes items whose privacy answers contradict what the extension does, so a permission added to the
+// manifest without a matching line in the policy and the listing text should fail here, not in review.
+console.log("\nStore listing");
+{
+  const ROOT = path.join(__dirname, "..");
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.json"), "utf8"));
+  const listing = fs.readFileSync(path.join(ROOT, "store", "listing.md"), "utf8");
+  const privacy = fs.readFileSync(path.join(ROOT, "PRIVACY.md"), "utf8");
+  const permissions = manifest.permissions || [];
+  check("listing: quotes the manifest description as the summary", listing.includes(manifest.description), true);
+  check("listing: has a justification for every permission in the manifest", permissions.every((p) => listing.includes("`" + p + "`")), true);
+  check("listing: covers the all-sites content script", /<all_urls>/.test(JSON.stringify(manifest.content_scripts)) && /content script that runs on all sites/i.test(listing), true);
+  check("privacy policy: mentions every permission in the manifest", permissions.every((p) => privacy.includes(p)), true);
+  check("privacy policy: says nothing is sent and gives a contact", /makes no network requests/i.test(privacy) && /issues/i.test(privacy), true);
+  check("privacy policy: names the report link's repository", privacy.includes(`github.com/${load("<html><body></body></html>").Polygone.report.REPO}`), true);
+
+  // The store rejects a description that repeats a word unnaturally (more than 5 times) or lists shops.
+  const desc = listing.match(/\*\*Description\*\*\s+```\n([\s\S]*?)```/)[1];
+  const counts = {};
+  for (const w of desc.replace(/https?:\/\/\S+/g, "").toLowerCase().match(/[a-z][a-z'-]{4,}/g)) counts[w] = (counts[w] || 0) + 1;
+  check("listing: no long word in the description is used more than 5 times", Math.max(...Object.values(counts)) <= 5, true);
+  check("listing: description is not empty and fits the store's limit", desc.length > 500 && desc.length <= 16000, true);
+}
+
 // ---- Store package: what ships, the Web Store checks, and that the zip is sound ----
 console.log("\nPackage");
 {
