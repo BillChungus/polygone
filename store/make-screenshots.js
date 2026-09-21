@@ -243,6 +243,20 @@ const promoTileHtml = () => `<!doctype html><html><head><meta charset="utf-8"><s
       <div class="d"><i style="background:#ff6459"></i><i style="background:#ffa73d"></i><i style="background:#6fd39b"></i></div></div>
   </body></html>`;
 
+// The marquee tile (optional; the store uses it when featuring an extension): the same look, wider.
+const promoMarqueeHtml = () => `<!doctype html><html><head><meta charset="utf-8"><style>
+    *{box-sizing:border-box}
+    body{margin:0;width:1400px;height:560px;display:grid;place-items:center;font-family:${FONT};
+      background:radial-gradient(90% 150% at 15% 5%,#1d7396 0%,#0c2a38 62%)}
+    .c{display:flex;align-items:center;gap:56px} .c img{width:210px;height:210px;display:block}
+    .n{font-size:118px;line-height:1;font-weight:650;color:#fff;letter-spacing:.005em}
+    .d{display:flex;gap:16px;margin-top:34px}
+    .d i{width:104px;height:22px;border-radius:11px;display:block}
+  </style></head><body>
+    <div class="c"><img src="${ICON}" alt=""><div><div class="n">Polygone</div>
+      <div class="d"><i style="background:#ff6459"></i><i style="background:#ffa73d"></i><i style="background:#6fd39b"></i></div></div></div>
+  </body></html>`;
+
 async function renderHtml(browser, html, width, height, out) {
   const page = await browser.newPage();
   await page.setViewport({ width, height, deviceScaleFactor: 1 });
@@ -278,25 +292,29 @@ function checkPng(file, width, height) {
   try {
     await sleep(2500); // the extension registers a moment after Chrome starts
 
-    const shots = [
-      { file: "wrap-dress", headline: "See the plastic in your clothes before you buy",
-        sub: "A badge on the product page shows how much of the fabric is plastic-based.", out: "1-see-the-plastic.png" },
-      { file: "field-jacket", headline: "One box for every part of the garment",
-        sub: "Shell, lining, pockets: each part gets its own reading.", out: "2-every-part.png" },
-      { file: "rib-tee", open: true, headline: "Click the badge to see what it read",
-        sub: "The text it found on the page, and how it was counted.", out: "3-what-it-read.png" },
-    ];
-    for (const s of shots) await productShot(browser, port, { ...s, out: path.join(OUT, s.out) });
+    // `node store/make-screenshots.js promo` redoes only the two promo tiles, not the screenshots.
+    if (process.argv[2] !== "promo") {
+      const shots = [
+        { file: "wrap-dress", headline: "See the plastic in your clothes before you buy",
+          sub: "A badge on the product page shows how much of the fabric is plastic-based.", out: "1-see-the-plastic.png" },
+        { file: "field-jacket", headline: "One box for every part of the garment",
+          sub: "Shell, lining, pockets: each part gets its own reading.", out: "2-every-part.png" },
+        { file: "rib-tee", open: true, headline: "Click the badge to see what it read",
+          sub: "The text it found on the page, and how it was counted.", out: "3-what-it-read.png" },
+      ];
+      for (const s of shots) await productShot(browser, port, { ...s, out: path.join(OUT, s.out) });
 
-    const crops = {
-      red: await badgeCrop(browser, port, "wrap-dress"),
-      orange: await badgeCrop(browser, port, "rib-tee"),
-      green: await badgeCrop(browser, port, "linen-shirt"),
-      gray: await badgeCrop(browser, port, "boxy-top"),
-    };
-    await renderHtml(browser, colorGuideHtml(crops), 1280, 800, path.join(OUT, "4-color-guide.png"));
-    await renderHtml(browser, popupSceneHtml(await popupCrop(browser, port)), 1280, 800, path.join(OUT, "5-you-are-in-control.png"));
+      const crops = {
+        red: await badgeCrop(browser, port, "wrap-dress"),
+        orange: await badgeCrop(browser, port, "rib-tee"),
+        green: await badgeCrop(browser, port, "linen-shirt"),
+        gray: await badgeCrop(browser, port, "boxy-top"),
+      };
+      await renderHtml(browser, colorGuideHtml(crops), 1280, 800, path.join(OUT, "4-color-guide.png"));
+      await renderHtml(browser, popupSceneHtml(await popupCrop(browser, port)), 1280, 800, path.join(OUT, "5-you-are-in-control.png"));
+    }
     await renderHtml(browser, promoTileHtml(), 440, 280, path.join(OUT, "promo-small-440x280.png"));
+    await renderHtml(browser, promoMarqueeHtml(), 1400, 560, path.join(OUT, "promo-marquee-1400x560.png"));
   } finally {
     await browser.close();
     server.close();
@@ -304,6 +322,7 @@ function checkPng(file, width, height) {
   }
 
   for (const f of fs.readdirSync(OUT).filter((n) => n.endsWith(".png")).sort()) {
-    console.log(checkPng(path.join(OUT, f), f.startsWith("promo-small") ? 440 : 1280, f.startsWith("promo-small") ? 280 : 800));
+    const [w, h] = f.startsWith("promo-small") ? [440, 280] : f.startsWith("promo-marquee") ? [1400, 560] : [1280, 800];
+    console.log(checkPng(path.join(OUT, f), w, h));
   }
 })().catch((e) => { console.error(e); process.exit(2); });

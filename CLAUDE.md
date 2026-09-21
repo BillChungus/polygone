@@ -165,7 +165,8 @@ may still be called `poly-check`; that is only a directory name.
 - `store/listing.md` - everything to paste into the dashboard (description, single purpose, permission
   justifications, data-usage answers, test instructions) and a submit checklist. Description rules: no shop/brand
   lists, no word more than 5 times.
-- `store/screenshots/` - five 1280x800 screenshots and the 440x280 small promo tile (required by the store), made
+- `store/screenshots/` - five 1280x800 screenshots, the 440x280 small promo tile (required by the store) and the
+  1400x560 marquee tile (optional; `node store/make-screenshots.js promo` redoes just the two tiles), made
   by `store/make-screenshots.js` in real Chrome with the extension loaded (`npm install --no-save puppeteer-core`,
   then `node store/make-screenshots.js`; needs Chrome and takes about a minute). Screenshots must be 24-bit PNG
   without alpha; the script checks size and alpha. Re-run it whenever the badge, panel or popup changes visibly.

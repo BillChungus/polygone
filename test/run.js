@@ -522,6 +522,9 @@ console.log("\nDemo shop");
   const index = fs.readFileSync(path.join(DEMO, "index.html"), "utf8");
   check("demo index: not a product page (no badge)", load(index).Polygone.isProductPage(), false);
   check("demo index: links to every product page", Object.keys(demoCases).every((n) => index.includes(`href="${n}.html"`)), true);
+  const docsRoot = fs.readFileSync(path.join(DEMO, "..", "index.html"), "utf8");
+  check("docs root (GitHub Pages home): sends visitors to the demo shop", /http-equiv="refresh"[^>]*url=demo\//i.test(docsRoot) && docsRoot.includes('href="demo/"'), true);
+  check("docs root: not a product page", load(docsRoot).Polygone.isProductPage(), false);
   const all = fs.readdirSync(DEMO).filter((f) => f.endsWith(".html")).map((f) => fs.readFileSync(path.join(DEMO, f), "utf8")).join("\n");
   check("demo pages: no scripts other than product data, and nothing loaded from other sites", /<script(?![^>]*ld\+json)/i.test(all) || /(?:src|href)=["'](?:https?:)?\/\//i.test(all), false);
 }

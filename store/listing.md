@@ -20,7 +20,8 @@ later upload.
 | Store icon | `icons/icon128.png` (128x128) |
 | Screenshots | The five files in `store/screenshots/`, in the order of their numbers (1280x800) |
 | Small promo tile | `store/screenshots/promo-small-440x280.png` (440x280, required). A placeholder made from the icon: replace it with your own design if you like |
-| Marquee promo tile, promo video | Skip (optional) |
+| Marquee promo tile | `store/screenshots/promo-marquee-1400x560.png` (1400x560, optional: the store uses it when featuring an extension). Also a placeholder |
+| Promo video | Skip (optional) |
 | Homepage URL | `https://github.com/BillChungus/polygone` |
 | Support URL | `https://github.com/BillChungus/polygone/issues` |
 
@@ -86,8 +87,13 @@ When the person opens the toolbar popup, it reads the site name (hostname) of th
 
 Host permission (the content script that runs on all sites)
 ```
-Polygone's single purpose is to show a garment's fabric composition on its product page. Clothing is sold on countless different shops' websites, so it cannot know in advance which sites to run on. On each page, the content script checks whether it is a product page and, only if it is, reads that page's own text and product data to find the fabric composition, then adds a small badge. It reads nothing else, keeps none of the page, and makes no network requests. It runs in the top frame only.
+Polygone's single purpose is to show a garment's fabric composition on its product page. Clothing is sold on countless different shops' websites, so it cannot know in advance which sites to run on. On each page, the content script checks whether it is a product page and, only if it is, reads that page's own text and product data to find the fabric composition, then adds a small badge. It reads nothing else, keeps none of the page, and makes no network requests. It runs in the top frame only. The activeTab permission alone cannot do this: it only takes effect after the person clicks the toolbar icon on that page, but the badge is meant to appear by itself as they browse.
 ```
+
+The dashboard warns "Broad Host Permissions ... may require an in-depth review". That is a warning, not an error: it
+does not block submitting, it can make the review take longer (Google says usually days, sometimes weeks). The last
+sentence above answers its suggestion to use `activeTab` instead. Filling in the test instructions (section 5) helps
+the reviewer see it work straight away.
 
 Remote code: **No, I am not using remote code.** (Everything Polygone runs is in the package; there is no `eval`, no
 remotely hosted script, and no network access.)
