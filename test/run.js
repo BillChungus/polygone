@@ -552,6 +552,14 @@ console.log("\nStore listing");
   for (const w of desc.replace(/https?:\/\/\S+/g, "").toLowerCase().match(/[a-z][a-z'-]{4,}/g)) counts[w] = (counts[w] || 0) + 1;
   check("listing: no long word in the description is used more than 5 times", Math.max(...Object.values(counts)) <= 5, true);
   check("listing: description is not empty and fits the store's limit", desc.length > 500 && desc.length <= 16000, true);
+
+  // Rejected once (23 Sep 2026, "excessive keywords") for a sentence that packed ten fiber names together
+  // ("Polyester (including ...), nylon (...), acrylic and modacrylic, elastane (...), polyurethane (...), PVC, ..."),
+  // which read as a keyword list even though every word was accurate. Guard against that shape coming back: no
+  // sentence in the description should read as a comma-separated pile of terms.
+  const sentences = desc.split(/[\n.!?]+/).map((s) => s.trim()).filter(Boolean);
+  const mostCommas = Math.max(...sentences.map((s) => (s.match(/,/g) || []).length));
+  check("listing: no sentence in the description is a long comma list (reads as keyword stuffing)", mostCommas <= 2, true);
 }
 
 // ---- Store package: what ships, the Web Store checks, and that the zip is sound ----

@@ -30,7 +30,7 @@ later upload.
 ```
 Polygone shows how much plastic is in a garment's fabric while you shop.
 
-Open a clothing product page and a small badge appears in the corner. Polygone has read the fabric composition for you and added up the synthetic fibers: polyester, nylon, acrylic, elastane (spandex) and similar. The badge is colored and labeled, so you can take it in at a glance:
+Open a clothing product page and a small badge appears in the corner. Polygone has read the fabric composition for you and added up the synthetic, plastic-based fibers. The badge is colored and labeled, so you can take it in at a glance:
 
 • Red: more than 10% plastic
 • Orange: up to 10%
@@ -44,8 +44,8 @@ BUILT FOR REAL PRODUCT PAGES
 • It finds the details shoppers usually have to hunt for, including sections that are collapsed by default.
 • It is honest when it isn't sure. If a page names a fiber but not the amount, the badge says so. If it can't find a composition, it says that, and never shows green just because nothing was found.
 
-WHAT COUNTS
-Polyester (including recycled polyester), nylon (polyamide), acrylic and modacrylic, elastane (spandex), polyurethane (PU), PVC, polypropylene, polyethylene, aramid, neoprene and other plastic-based fibers. Cotton, linen, wool and silk are not counted, and neither are fibers made from plant cellulose (viscose, modal, lyocell, cupro, acetate).
+WHAT COUNTS AS PLASTIC
+A few common examples: polyester, nylon and elastane (also called spandex). Natural fibers such as cotton, linen and wool are not counted, and neither is fabric made from plant cellulose such as viscose.
 
 PRIVATE BY DESIGN
 • Everything happens on your device. Polygone makes no network requests, needs no account, and keeps or sends nothing about you or your browsing.
@@ -61,9 +61,14 @@ Free and open source (MIT license): https://github.com/BillChungus/polygone
 Privacy policy: https://github.com/BillChungus/polygone/blob/main/PRIVACY.md
 ```
 
-The store rejects keyword stuffing (a word repeated unnaturally more than 5 times, or lists of brands or sites). This
-text names no shops, and none of its keywords is used more than 4 times outside the two links (`npm test` checks
-that no word of 5 or more letters goes past 5).
+**Rejected once already** (23 September 2026, "Spam and Placement in the Store" / excessive keywords) for the old
+WHAT COUNTS paragraph: it packed ten technical fiber names into one sentence ("Polyester (including recycled
+polyester), nylon (polyamide), acrylic and modacrylic, elastane (spandex), polyurethane (PU), PVC, polypropylene,
+polyethylene, aramid, neoprene..."), which reads as a keyword list to Google's scanner even though every word was
+accurate. The text above replaces it with plain sentences and a few examples instead of an exhaustive list. The store
+also rejects a word repeated unnaturally more than 5 times, or lists of brands or sites; this text does neither.
+`npm test` checks both: no word of 5 or more letters is used more than 5 times, and no sentence packs more than 2
+commas' worth of items into a list (the shape of the actual rejection).
 
 ## 3. Privacy practices tab
 
